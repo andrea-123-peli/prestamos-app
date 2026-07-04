@@ -1,18 +1,4 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>MiPrestamo Pro</title>
-<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<style>*{margin:0;padding:0;box-sizing:border-box;}body{background:#0a0f1e;}</style>
-</head>
-<body>
-<div id="root"></div>
-<script type="text/babel">
+const {useState,useMemo,useEffect}=React;
 
 const EC={activo:{bg:"#d1fae5",text:"#065f46",dot:"#10b981"},pagado:{bg:"#dbeafe",text:"#1e40af",dot:"#3b82f6"},perdida:{bg:"#fee2e2",text:"#991b1b",dot:"#ef4444"},atrasado:{bg:"#fef3c7",text:"#92400e",dot:"#f59e0b"}};
 const FREQ=["diario","semanal","quincenal","mensual"];
@@ -1340,9 +1326,5 @@ function App(){
   );
 }
 
-const root=ReactDOM.createRoot(document.getElementById("root"));
-root.render(<App/>);
-
-</script>
-</body>
-</html>
+const domRoot=ReactDOM.createRoot(document.getElementById("root"));
+domRoot.render(<App/>);
