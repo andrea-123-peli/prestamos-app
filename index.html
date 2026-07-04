@@ -268,7 +268,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     const upd=u.find(c=>c.id===id);
     if(upd&&upd.estado==="pagado"){
       const gan=Math.max(0,qR(upd)*upd.cuotas-upd.monto-(upd.descuento||0));
-      const nuevaGan=[...ganHist,{id:upd.id+"_p_"+hoy(),clienteId:upd.id,ganancia:gan,fecha:hoy()}];
+      const nuevaGan=[...ganHist,{id:upd.id+"_p_"+hoy(),clienteId:upd.id,ganancia:gan,fecha:upd.fechaInicio||hoy()}];
       setGanHist(nuevaGan);sSt(SK+"_gan",JSON.stringify(nuevaGan));
       showT("Pagado - "+upd.nombre);
     } else showT("Cuota "+n0+" - "+(c0?c0.nombre:""));
@@ -288,7 +288,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     const upd=u.find(c=>c.id===id);
     if(upd){
       const gan=Math.max(0,qR(upd)*upd.cuotas-upd.monto-desc);
-      const nuevaGan=[...ganHist,{id:upd.id+"_pf_"+hoy(),clienteId:upd.id,ganancia:gan,descuento:desc,fecha:hoy()}];
+      const nuevaGan=[...ganHist,{id:upd.id+"_pf_"+hoy(),clienteId:upd.id,ganancia:gan,descuento:desc,fecha:upd.fechaInicio||hoy()}];
       setGanHist(nuevaGan);sSt(SK+"_gan",JSON.stringify(nuevaGan));
     }
     setShowPagoFinal(false);setPagoFinalId(null);setDescuento("");
@@ -315,7 +315,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     const upd=u.find(c=>c.id===id);
     if(upd&&upd.estado==="pagado"){
       const gan=Math.max(0,qR(upd)*upd.cuotas-upd.monto-(upd.descuento||0));
-      const nuevaGan=[...ganHist,{id:upd.id+"_a_"+hoy(),clienteId:upd.id,ganancia:gan,fecha:hoy()}];
+      const nuevaGan=[...ganHist,{id:upd.id+"_a_"+hoy(),clienteId:upd.id,ganancia:gan,fecha:upd.fechaInicio||hoy()}];
       setGanHist(nuevaGan);sSt(SK+"_gan",JSON.stringify(nuevaGan));
       showT((eraPerdiday?"Recuperado":"Pagado")+" - "+upd.nombre);
     } else showT("Abono - "+(c0?c0.nombre:""));
@@ -351,7 +351,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     if(c0&&c0.estado==="pagado"){
       // Solo guardar si estaba pagado — si no, fue un error y se borra todo
       const gan=Math.max(0,qR(c0)*c0.cuotas-c0.monto-(c0.descuento||0));
-      const nuevaGan=[...ganHist,{id:id+"_del_"+hoy(),clienteId:id,nombre:c0.nombre,ganancia:gan,fecha:(c0.historialPagos||[]).filter(f=>f).slice(-1)[0]||hoy()}];
+      const nuevaGan=[...ganHist,{id:id+"_del_"+hoy(),clienteId:id,nombre:c0.nombre,ganancia:gan,fecha:c0.fechaInicio||hoy()}];
       setGanHist(nuevaGan);
       sSt(SK+"_gan",JSON.stringify(nuevaGan));
       const capCliente=c0.monto+(c0.renovaciones||[]).reduce((a,r)=>a+(r.montoAnterior||0),0);
