@@ -11,7 +11,7 @@
 <style>*{margin:0;padding:0;box-sizing:border-box;}body{background:#0a0f1e;}</style>
 </head>
 <body>
-<div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#f59e0b;font-size:20px;font-family:Georgia,serif;">Cargando MiPrestamo Pro...</div></div>
+<div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#f59e0b;font-size:20px;font-family:Georgia,serif;">Cargando...</div></div>
 <script type="text/babel">
 const {useState,useMemo,useEffect}=React;
 
@@ -446,6 +446,26 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                 ))}
               </div>
             </div>
+            <div style={{background:"#1e293b",borderRadius:11,padding:"12px 14px",border:"1px solid #334155",marginBottom:12}}>
+              <div style={{fontSize:10,fontWeight:700,color:"#64748b",marginBottom:8,textTransform:"uppercase"}}>Clientes por Frecuencia</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:7}}>
+                {[
+                  {l:"Diarios",f:"diario",c:"#06b6d4"},
+                  {l:"Semanales",f:"semanal",c:"#8b5cf6"},
+                  {l:"Quincenales",f:"quincenal",c:"#f59e0b"},
+                  {l:"Mensuales",f:"mensual",c:"#10b981"},
+                ].map((x,i)=>{
+                  const n=cl.filter(c=>c.frecuencia===x.f&&(c.estado==="activo"||c.estado==="atrasado")).length;
+                  return(
+                    <div key={i} style={{background:"#0f172a",borderRadius:8,padding:"8px",textAlign:"center",border:"1px solid "+x.c+"33"}}>
+                      <div style={{fontSize:22,fontWeight:900,color:n>0?x.c:"#334155",lineHeight:1}}>{n}</div>
+                      <div style={{fontSize:9,fontWeight:600,color:n>0?x.c:"#475569",marginTop:3}}>{x.l}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <div style={{background:stats.ph.length>0?"#0d2b1f":"#1e293b",borderRadius:11,padding:"12px 14px",border:stats.ph.length>0?"1px solid #10b98144":"1px solid #334155"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:stats.ph.length>0?8:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:6}}><span>📋</span><span style={{fontSize:12,fontWeight:700,color:"#f1f5f9"}}>Anotados hoy</span><span style={{background:"#334155",color:"#94a3b8",borderRadius:20,padding:"1px 7px",fontSize:11,fontWeight:700}}>{stats.ph.length}</span></div>
@@ -537,7 +557,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                     <div style={{width:42,height:42,borderRadius:"50%",background:col.dot+"20",border:"2px solid "+col.dot,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:col.dot,fontSize:17}}>{c.nombre[0]}</div>
                     <div>
                       <div style={{fontSize:16,fontWeight:800,color:"#f1f5f9"}}>{c.nombre}</div>
-                      <div style={{fontSize:10,color:"#64748b"}}>{c.fechaInicio} · {c.frecuencia}{c.diaCobro?" · Cobro: "+c.diaCobro:""}</div>
+                      <div style={{fontSize:10,color:"#64748b",display:"flex",alignItems:"center",gap:4}}><input type="date" value={c.fechaInicio} onChange={e=>{const u=cl.map(x=>x.id===c.id?{...x,fechaInicio:e.target.value}:x);save(u);if(det&&det.id===c.id)setDet(u.find(x=>x.id===c.id));}} style={{background:"transparent",border:"none",color:"#64748b",fontSize:10,outline:"none",cursor:"pointer"}}/> · {c.frecuencia}{c.diaCobro?" · "+c.diaCobro:""}</div>
                     </div>
                   </div>
                   <span style={{padding:"3px 9px",borderRadius:20,background:col.bg,color:col.text,fontSize:10,fontWeight:700}}>{c.estado.toUpperCase()}</span>
@@ -899,7 +919,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
               <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Cuotas ya pagadas</label><input type="number" value={form.yapag} onChange={e=>setForm(p=>({...p,yapag:e.target.value}))} placeholder="0" style={INP}/></div>
               <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Cuota a cobrar (opcional)</label><input type="text" inputMode="numeric" value={form.cuotaP} onChange={e=>{const r=pN(e.target.value);setForm(p=>({...p,cuotaP:r?fN(r):""}));}} placeholder="Opcional" style={INP}/></div>
               <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Frecuencia</label><select value={form.frecuencia} onChange={e=>setForm(p=>({...p,frecuencia:e.target.value}))} style={{...INP,cursor:"pointer"}}>{FREQ.map(f=><option key={f} value={f}>{f.charAt(0).toUpperCase()+f.slice(1)}</option>)}</select></div>
-              <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>{form.frecuencia==="semanal"?"Dia de cobro (dia de semana)":"Dia de cobro (dia del mes)"} <span style={{color:"#64748b",fontWeight:400}}>(opcional)</span></label>{form.frecuencia==="semanal"?<select value={form.diaCobro} onChange={e=>setForm(p=>({...p,diaCobro:e.target.value}))} style={{...INP,cursor:"pointer"}}><option value="">Sin dia fijo</option>{["Lunes","Martes","Miercoles","Jueves","Viernes","Sabado","Domingo"].map(d=><option key={d} value={d}>{d}</option>)}</select>:<input type="number" min="1" max="31" value={form.diaCobro} onChange={e=>setForm(p=>({...p,diaCobro:e.target.value}))} placeholder="Ej: 15" style={INP}/>}</div>
+
               <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Fecha inicio</label><input type="date" value={form.fechaInicio} onChange={e=>setForm(p=>({...p,fechaInicio:e.target.value}))} style={INP}/></div>
               <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Estado</label><select value={form.estado} onChange={e=>setForm(p=>({...p,estado:e.target.value}))} style={{...INP,cursor:"pointer"}}>{EST.map(e=><option key={e} value={e}>{e.charAt(0).toUpperCase()+e.slice(1)}</option>)}</select></div>
               {pN(form.monto)>0&&Number(form.tasa)>0&&Number(form.cuotas)>0&&(()=>{
