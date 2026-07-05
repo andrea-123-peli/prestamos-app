@@ -179,9 +179,11 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     });
     // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
     const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{
+      if(!c.cuotas||c.cuotas===0)return s+c.monto;
       const capPorCuota=c.monto/c.cuotas;
       const totalAb=(c.abonos||[]).reduce((a,ab)=>a+ab.monto,0);
-      const capDevuelto=(c.cuotasPorBoton||c.cuotasPagadas)*capPorCuota+(totalAb*(c.monto/(qR(c)*c.cuotas)));
+      const qv=qR(c)||1;
+      const capDevuelto=(c.cuotasPorBoton||c.cuotasPagadas)*capPorCuota+(totalAb*(c.monto/(qv*c.cuotas)));
       return s+Math.max(0,c.monto-capDevuelto);
     },0);
     let mg=0;
@@ -507,7 +509,10 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
               </div>}
             </div>
           </div>
+      
         )}
+
+
 
         {tab==="clientes"&&!DA&&(
           <div>
@@ -672,9 +677,11 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     });
     // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
     const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{
+      if(!c.cuotas||c.cuotas===0)return s+c.monto;
       const capPorCuota=c.monto/c.cuotas;
       const totalAb=(c.abonos||[]).reduce((a,ab)=>a+ab.monto,0);
-      const capDevuelto=(c.cuotasPorBoton||c.cuotasPagadas)*capPorCuota+(totalAb*(c.monto/(qR(c)*c.cuotas)));
+      const qv=qR(c)||1;
+      const capDevuelto=(c.cuotasPorBoton||c.cuotasPagadas)*capPorCuota+(totalAb*(c.monto/(qv*c.cuotas)));
       return s+Math.max(0,c.monto-capDevuelto);
     },0);
               const dMes=hD.find(x=>x.label===mlb);
