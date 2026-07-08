@@ -385,7 +385,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
             <div><div style={{fontSize:14,fontWeight:700,color:"#f1f5f9"}}>{nombre}</div>{saved&&<div style={{fontSize:9,color:"#10b981"}}>Guardado</div>}</div>
           </div>
           <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
-            {[["dash","📊 Inicio"],["clientes","👥 Clientes"],["historial","📅 Historial"],["libro","📒 Libro"]].filter(Boolean).map(([id,ic])=>(
+            {[["dash","📊 Inicio"],["clientes","👥 Clientes"],["historial","📅 Historial"],["libro","📒 Libro"],ck==="owner"&&allTrab?["global","🌐 Global"]:null].filter(Boolean).map(([id,ic])=>(
               <button key={id} onClick={()=>{setTab(id);setDet(null);if(id==="global")loadGlobal();}} style={{padding:"5px 8px",borderRadius:7,border:"none",cursor:"pointer",fontSize:11,fontWeight:600,background:tab===id?"linear-gradient(135deg,"+CA+","+CA+"bb)":"transparent",color:tab===id?"#0f172a":"#94a3b8",whiteSpace:"nowrap"}}>{ic}</button>
             ))}
             {ck==="owner"&&allTrab&&allTrab.filter(t=>t.activo!==false).length>0&&(
