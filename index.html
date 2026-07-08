@@ -69,6 +69,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
   const [showExp,setShowExp]=useState(false);
   const [showExcel,setShowExcel]=useState(false);
   const [confirmDel,setConfirmDel]=useState(null);
+  const [filtFrec,setFiltFrec]=useState(null);
   const [confirmReset,setConfirmReset]=useState(false);
   const [resetTxt,setResetTxt]=useState("");
   const [ganHist,setGanHist]=useState([]);
@@ -447,7 +448,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
             </div>
             <div style={{background:"#1e293b",borderRadius:11,padding:"12px 14px",border:"1px solid #334155",marginBottom:12}}>
               <div style={{fontSize:10,fontWeight:700,color:"#64748b",marginBottom:8,textTransform:"uppercase"}}>Clientes por Frecuencia</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:7}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:7,marginBottom:8}}>
                 {[
                   {l:"Diarios",f:"diario",c:"#06b6d4"},
                   {l:"Semanales",f:"semanal",c:"#8b5cf6"},
@@ -455,14 +456,31 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                   {l:"Mensuales",f:"mensual",c:"#10b981"},
                 ].map((x,i)=>{
                   const n=cl.filter(c=>c.frecuencia===x.f&&(c.estado==="activo"||c.estado==="atrasado")).length;
+                  const sel=filtFrec===x.f;
                   return(
-                    <div key={i} style={{background:"#0f172a",borderRadius:8,padding:"8px",textAlign:"center",border:"1px solid "+x.c+"33"}}>
+                    <div key={i} onClick={()=>setFiltFrec(sel?null:x.f)} style={{background:sel?x.c+"33":"#0f172a",borderRadius:8,padding:"8px",textAlign:"center",border:"2px solid "+(sel?x.c:x.c+"33"),cursor:"pointer"}}>
                       <div style={{fontSize:22,fontWeight:900,color:n>0?x.c:"#334155",lineHeight:1}}>{n}</div>
                       <div style={{fontSize:9,fontWeight:600,color:n>0?x.c:"#475569",marginTop:3}}>{x.l}</div>
                     </div>
                   );
                 })}
               </div>
+              {filtFrec&&(
+                <div style={{borderTop:"1px solid #334155",paddingTop:9}}>
+                  {cl.filter(c=>c.frecuencia===filtFrec&&(c.estado==="activo"||c.estado==="atrasado")).map((c,i)=>{
+                    const col=filtFrec==="diario"?"#06b6d4":filtFrec==="semanal"?"#8b5cf6":filtFrec==="quincenal"?"#f59e0b":"#10b981";
+                    return(
+                      <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 9px",background:"#0f172a",borderRadius:7,marginBottom:4,border:"1px solid "+col+"22"}}>
+                        <div>
+                          <div style={{fontSize:12,fontWeight:700,color:"#f1f5f9"}}>{c.nombre}</div>
+                          <div style={{fontSize:10,color:"#64748b"}}>{fC(cS(c))} pendiente · {c.cuotasPagadas}/{c.cuotas} cuotas</div>
+                        </div>
+                        <div style={{fontSize:11,fontWeight:700,color:col}}>{fC(qR(c))}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div style={{background:stats.ph.length>0?"#0d2b1f":"#1e293b",borderRadius:11,padding:"12px 14px",border:stats.ph.length>0?"1px solid #10b98144":"1px solid #334155"}}>
