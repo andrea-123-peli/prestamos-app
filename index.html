@@ -475,7 +475,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                   <div style={{borderTop:"1px solid #334155",paddingTop:9}}>
                     {lista.length===0?<div style={{fontSize:11,color:"#475569",textAlign:"center",padding:8}}>Sin clientes</div>:
                     lista.map((c,i)=>(
-                      <div key={i} onClick={()=>{setFiltFrec(null);setTab("clientes");setDet(c);}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 9px",background:"#0f172a",borderRadius:7,marginBottom:4,cursor:"pointer",border:"1px solid "+color+"22"}}>
+                      <div key={i} onClick={()=>{setDet(c);setTab("clientes");}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 9px",background:"#0f172a",borderRadius:7,marginBottom:4,cursor:"pointer",border:"1px solid "+color+"22"}}>
                         <div>
                           <div style={{fontSize:12,fontWeight:700,color:"#f1f5f9"}}>{c.nombre}</div>
                           <div style={{fontSize:10,color:"#64748b"}}>{fC(cS(c))} pendiente · {c.cuotasPagadas}/{c.cuotas} cuotas</div>
