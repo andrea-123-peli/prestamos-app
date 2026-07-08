@@ -14,6 +14,7 @@
 <div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#f59e0b;font-size:20px;font-family:Georgia,serif;">Cargando...</div></div>
 <script type="text/babel">
 const {useState,useMemo,useEffect}=React;
+const {useState,useMemo,useEffect}=React;
 
 const EC={activo:{bg:"#d1fae5",text:"#065f46",dot:"#10b981"},pagado:{bg:"#dbeafe",text:"#1e40af",dot:"#3b82f6"},perdida:{bg:"#fee2e2",text:"#991b1b",dot:"#ef4444"},atrasado:{bg:"#fef3c7",text:"#92400e",dot:"#f59e0b"}};
 const FREQ=["diario","semanal","quincenal","mensual"];
@@ -168,21 +169,12 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     const perdTotal=cl.filter(c=>c.estado==="perdida").reduce((s,c)=>s+capitalPerdido(c),0);
     const ganFinal=ganTotal-perdTotal;
     const mn=new Date();const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
-    // Prestado este mes = monto actual si inicio/renovacion este mes
-    // + montos de renovaciones anteriores que ocurrieron este mes
-    let capMes=0;
-    cl.filter(c=>c.estado!=="perdida").forEach(c=>{
-      if(c.fechaInicio&&c.fechaInicio.startsWith(mlb))capMes+=c.monto;
-      else if(c.fechaRenovacion&&c.fechaRenovacion.startsWith(mlb))capMes+=c.monto;
-      (c.renovaciones||[]).forEach(r=>{if(r.fecha&&r.fecha.startsWith(mlb))capMes+=r.montoAnterior||0;});
-    });
+    const capMes=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0);
     // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
     const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{
-      if(!c.cuotas||c.cuotas===0)return s+c.monto;
       const capPorCuota=c.monto/c.cuotas;
       const totalAb=(c.abonos||[]).reduce((a,ab)=>a+ab.monto,0);
-      const qv=qR(c)||1;
-      const capDevuelto=(c.cuotasPorBoton||c.cuotasPagadas)*capPorCuota+(totalAb*(c.monto/(qv*c.cuotas)));
+      const capDevuelto=(c.cuotasPorBoton||c.cuotasPagadas)*capPorCuota+(totalAb*(c.monto/(qR(c)*c.cuotas)));
       return s+Math.max(0,c.monto-capDevuelto);
     },0);
     let mg=0;
@@ -237,11 +229,10 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
         let atr=0,nAtr=0;
         cl.forEach(c=>{
           if(c.fechaInicio&&c.fechaInicio.startsWith(label))pr+=c.monto;
+          if(c.estado==="pagado"){const lastPago=(c.historialPagos||[]).filter(f=>f).slice(-1)[0];if(lastPago&&lastPago.startsWith(label))g+=(qR(c)*c.cuotas-c.monto);}
           if(c.estado==="perdida"&&c.fechaInicio&&c.fechaInicio.startsWith(label))p+=capitalPerdido(c);
           if(c.estado==="atrasado"){atr+=cS(c);nAtr++;}
         });
-        // Ganancia del mes viene de ganHist por fecha de inicio
-        ganHist.filter(gh=>gh.fecha&&gh.fecha.startsWith(label)).forEach(gh=>{g+=gh.ganancia;});
         ms.push({label,g:Math.round(g),p:Math.round(p),n:Math.round(g-p),pr:Math.round(pr),atr:Math.round(atr),nAtr});
         m++;
       }y++;
@@ -271,7 +262,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     const upd=u.find(c=>c.id===id);
     if(upd&&upd.estado==="pagado"){
       const gan=Math.max(0,qR(upd)*upd.cuotas-upd.monto-(upd.descuento||0));
-      const nuevaGan=[...ganHist,{id:upd.id+"_p_"+hoy(),clienteId:upd.id,ganancia:gan,fecha:upd.fechaInicio||hoy()}];
+      const nuevaGan=[...ganHist,{id:upd.id+"_p_"+hoy(),clienteId:upd.id,ganancia:gan,fecha:hoy()}];
       setGanHist(nuevaGan);sSt(SK+"_gan",JSON.stringify(nuevaGan));
       showT("Pagado - "+upd.nombre);
     } else showT("Cuota "+n0+" - "+(c0?c0.nombre:""));
@@ -291,7 +282,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     const upd=u.find(c=>c.id===id);
     if(upd){
       const gan=Math.max(0,qR(upd)*upd.cuotas-upd.monto-desc);
-      const nuevaGan=[...ganHist,{id:upd.id+"_pf_"+hoy(),clienteId:upd.id,ganancia:gan,descuento:desc,fecha:upd.fechaInicio||hoy()}];
+      const nuevaGan=[...ganHist,{id:upd.id+"_pf_"+hoy(),clienteId:upd.id,ganancia:gan,descuento:desc,fecha:hoy()}];
       setGanHist(nuevaGan);sSt(SK+"_gan",JSON.stringify(nuevaGan));
     }
     setShowPagoFinal(false);setPagoFinalId(null);setDescuento("");
@@ -318,7 +309,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     const upd=u.find(c=>c.id===id);
     if(upd&&upd.estado==="pagado"){
       const gan=Math.max(0,qR(upd)*upd.cuotas-upd.monto-(upd.descuento||0));
-      const nuevaGan=[...ganHist,{id:upd.id+"_a_"+hoy(),clienteId:upd.id,ganancia:gan,fecha:upd.fechaInicio||hoy()}];
+      const nuevaGan=[...ganHist,{id:upd.id+"_a_"+hoy(),clienteId:upd.id,ganancia:gan,fecha:hoy()}];
       setGanHist(nuevaGan);sSt(SK+"_gan",JSON.stringify(nuevaGan));
       showT((eraPerdiday?"Recuperado":"Pagado")+" - "+upd.nombre);
     } else showT("Abono - "+(c0?c0.nombre:""));
@@ -354,7 +345,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     if(c0&&c0.estado==="pagado"){
       // Solo guardar si estaba pagado — si no, fue un error y se borra todo
       const gan=Math.max(0,qR(c0)*c0.cuotas-c0.monto-(c0.descuento||0));
-      const nuevaGan=[...ganHist,{id:id+"_del_"+hoy(),clienteId:id,nombre:c0.nombre,ganancia:gan,fecha:c0.fechaInicio||hoy()}];
+      const nuevaGan=[...ganHist,{id:id+"_del_"+hoy(),clienteId:id,nombre:c0.nombre,ganancia:gan,fecha:(c0.historialPagos||[]).filter(f=>f).slice(-1)[0]||hoy()}];
       setGanHist(nuevaGan);
       sSt(SK+"_gan",JSON.stringify(nuevaGan));
       const capCliente=c0.monto+(c0.renovaciones||[]).reduce((a,r)=>a+(r.montoAnterior||0),0);
@@ -385,8 +376,8 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
             <div><div style={{fontSize:14,fontWeight:700,color:"#f1f5f9"}}>{nombre}</div>{saved&&<div style={{fontSize:9,color:"#10b981"}}>Guardado</div>}</div>
           </div>
           <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
-            {[["dash","📊 Inicio"],["clientes","👥 Clientes"],["historial","📅 Historial"],["libro","📒 Libro"],ck==="owner"&&allTrab?["global","🌐 Global"]:null].filter(Boolean).map(([id,ic])=>(
-              <button key={id} onClick={()=>{setTab(id);setDet(null);if(id==="global")loadGlobal();}} style={{padding:"5px 8px",borderRadius:7,border:"none",cursor:"pointer",fontSize:11,fontWeight:600,background:tab===id?"linear-gradient(135deg,"+CA+","+CA+"bb)":"transparent",color:tab===id?"#0f172a":"#94a3b8",whiteSpace:"nowrap"}}>{ic}</button>
+            {[["dash","📊 Inicio"],["clientes","👥 Clientes"],["historial","📅 Historial"],["libro","📒 Libro"]].filter(Boolean).map(([id,ic])=>(
+              <button key={id} onClick={()=>{setTab(id);setDet(null);}} style={{padding:"5px 8px",borderRadius:7,border:"none",cursor:"pointer",fontSize:11,fontWeight:600,background:tab===id?"linear-gradient(135deg,"+CA+","+CA+"bb)":"transparent",color:tab===id?"#0f172a":"#94a3b8",whiteSpace:"nowrap"}}>{ic}</button>
             ))}
             {ck==="owner"&&allTrab&&allTrab.filter(t=>t.activo!==false).length>0&&(
               <button onClick={()=>{const d={};(allTrab||[]).forEach(t=>d[t.id]=t.pin||"");setPinD(d);setShowPins(true);}} style={{padding:"5px 8px",borderRadius:7,border:"1px solid #334155",cursor:"pointer",fontSize:11,fontWeight:600,background:"transparent",color:"#64748b"}}>PINs</button>
@@ -449,26 +440,6 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                 ))}
               </div>
             </div>
-            <div style={{background:"#1e293b",borderRadius:11,padding:"12px 14px",border:"1px solid #334155",marginBottom:12}}>
-              <div style={{fontSize:10,fontWeight:700,color:"#64748b",marginBottom:8,textTransform:"uppercase"}}>Clientes por Frecuencia</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:7}}>
-                {[
-                  {l:"Diarios",f:"diario",c:"#06b6d4"},
-                  {l:"Semanales",f:"semanal",c:"#8b5cf6"},
-                  {l:"Quincenales",f:"quincenal",c:"#f59e0b"},
-                  {l:"Mensuales",f:"mensual",c:"#10b981"},
-                ].map((x,i)=>{
-                  const n=cl.filter(c=>c.frecuencia===x.f&&(c.estado==="activo"||c.estado==="atrasado")).length;
-                  return(
-                    <div key={i} style={{background:"#0f172a",borderRadius:8,padding:"8px",textAlign:"center",border:"1px solid "+x.c+"33"}}>
-                      <div style={{fontSize:22,fontWeight:900,color:n>0?x.c:"#334155",lineHeight:1}}>{n}</div>
-                      <div style={{fontSize:9,fontWeight:600,color:n>0?x.c:"#475569",marginTop:3}}>{x.l}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
             <div style={{background:stats.ph.length>0?"#0d2b1f":"#1e293b",borderRadius:11,padding:"12px 14px",border:stats.ph.length>0?"1px solid #10b98144":"1px solid #334155"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:stats.ph.length>0?8:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:6}}><span>📋</span><span style={{fontSize:12,fontWeight:700,color:"#f1f5f9"}}>Anotados hoy</span><span style={{background:"#334155",color:"#94a3b8",borderRadius:20,padding:"1px 7px",fontSize:11,fontWeight:700}}>{stats.ph.length}</span></div>
@@ -488,10 +459,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
               </div>}
             </div>
           </div>
-      
         )}
-
-
 
         {tab==="clientes"&&!DA&&(
           <div>
@@ -563,7 +531,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                     <div style={{width:42,height:42,borderRadius:"50%",background:col.dot+"20",border:"2px solid "+col.dot,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:col.dot,fontSize:17}}>{c.nombre[0]}</div>
                     <div>
                       <div style={{fontSize:16,fontWeight:800,color:"#f1f5f9"}}>{c.nombre}</div>
-                      <div style={{fontSize:10,color:"#64748b",display:"flex",alignItems:"center",gap:4}}><input type="date" value={c.fechaInicio} onChange={e=>{const u=cl.map(x=>x.id===c.id?{...x,fechaInicio:e.target.value}:x);save(u);if(det&&det.id===c.id)setDet(u.find(x=>x.id===c.id));}} style={{background:"transparent",border:"none",color:"#64748b",fontSize:10,outline:"none",cursor:"pointer"}}/> · {c.frecuencia}{c.diaCobro?" · "+c.diaCobro:""}</div>
+                      <div style={{fontSize:10,color:"#64748b"}}>{c.fechaInicio} · {c.frecuencia}{c.diaCobro?" · Cobro: "+c.diaCobro:""}</div>
                     </div>
                   </div>
                   <span style={{padding:"3px 9px",borderRadius:20,background:col.bg,color:col.text,fontSize:10,fontWeight:700}}>{c.estado.toUpperCase()}</span>
@@ -646,21 +614,12 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
               const tc=hD.reduce((s,d)=>s+d.g,0);const tp=hD.reduce((s,d)=>s+d.p,0);const tn=tc-tp;
               const cap=cl.reduce((s,c)=>s+c.monto,0);const rend=cap>0?((tn/cap)*100).toFixed(1):"0.0";const meses=hD.length||1;
               const mn=new Date();const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
-    // Prestado este mes = monto actual si inicio/renovacion este mes
-    // + montos de renovaciones anteriores que ocurrieron este mes
-    let capMes=0;
-    cl.filter(c=>c.estado!=="perdida").forEach(c=>{
-      if(c.fechaInicio&&c.fechaInicio.startsWith(mlb))capMes+=c.monto;
-      else if(c.fechaRenovacion&&c.fechaRenovacion.startsWith(mlb))capMes+=c.monto;
-      (c.renovaciones||[]).forEach(r=>{if(r.fecha&&r.fecha.startsWith(mlb))capMes+=r.montoAnterior||0;});
-    });
+    const capMes=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0);
     // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
     const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{
-      if(!c.cuotas||c.cuotas===0)return s+c.monto;
       const capPorCuota=c.monto/c.cuotas;
       const totalAb=(c.abonos||[]).reduce((a,ab)=>a+ab.monto,0);
-      const qv=qR(c)||1;
-      const capDevuelto=(c.cuotasPorBoton||c.cuotasPagadas)*capPorCuota+(totalAb*(c.monto/(qv*c.cuotas)));
+      const capDevuelto=(c.cuotasPorBoton||c.cuotasPagadas)*capPorCuota+(totalAb*(c.monto/(qR(c)*c.cuotas)));
       return s+Math.max(0,c.monto-capDevuelto);
     },0);
               const dMes=hD.find(x=>x.label===mlb);
@@ -849,52 +808,82 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
           );
         })()}
 
-        {tab==="global"&&ck==="owner"&&(()=>{
-          const {wStats:ws,oStats:os}=gStats;
-          const gG=(os?os.gan:0)+Object.values(ws).reduce((s,w)=>s+w.gan,0);
-          const gP=(os?os.perd:0)+Object.values(ws).reduce((s,w)=>s+w.perd,0);
-          const gN=(os?os.neta:0)+Object.values(ws).reduce((s,w)=>s+w.util,0);
-          const gC=(os?os.cap:0)+Object.values(ws).reduce((s,w)=>s+w.cap,0);
+        {tab==="libro"&&(()=>{
+          // Merge live data with permanent closed months
+          const todosMeses={};
+          // First add permanent closed months
+          cierresMes.forEach(d=>{todosMeses[d.label]=d;});
+          // Then overlay with live data (more accurate for current clients)
+          hD.forEach(d=>{todosMeses[d.label]=d;});
+          // Group by year
+          const porAnio={};
+          Object.values(todosMeses).sort((a,b)=>a.label.localeCompare(b.label)).forEach(d=>{
+            const anio=d.label.split("-")[0];
+            if(!porAnio[anio])porAnio[anio]=[];
+            porAnio[anio].push(d);
+          });
+          const anios=Object.keys(porAnio).sort((a,b)=>b-a);
+          const nomMes=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
           return(
             <div>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                <h2 style={{fontSize:18,fontWeight:700,color:"#f1f5f9"}}>Resumen Global</h2>
-                <button onClick={loadGlobal} style={{background:"#334155",color:"#94a3b8",border:"none",borderRadius:7,padding:"6px 11px",fontSize:11,fontWeight:600,cursor:"pointer"}}>Actualizar</button>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(125px,1fr))",gap:9,marginBottom:14}}>
-                {[{l:"Capital Total",v:fC(gC),c:"#3b82f6"},{l:"Ganancia Total",v:fC(gG),c:"#f59e0b"},{l:"Perdidas",v:fC(gP),c:"#ef4444"},{l:"Utilidad Neta",v:fC(gN),c:"#10b981"},{l:"Rendimiento",v:gC>0?((gN/gC)*100).toFixed(1)+"%":"0%",c:"#8b5cf6"}].map((x,i)=>(
-                  <div key={i} style={{background:"#1e293b",borderRadius:10,padding:"11px 12px",border:"1px solid "+x.c+"22"}}><div style={{fontSize:14,fontWeight:800,color:x.c}}>{x.v}</div><div style={{fontSize:10,color:"#94a3b8",marginTop:1}}>{x.l}</div></div>
-                ))}
-              </div>
-              <div style={{display:"grid",gap:9}}>
-                <div style={{background:"#1e293b",borderRadius:10,padding:13,border:"1px solid #f59e0b22"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:os?10:0}}>
-                    <div style={{width:34,height:34,borderRadius:"50%",background:"#f59e0b20",border:"2px solid #f59e0b",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:"#f59e0b",fontSize:13}}>M</div>
-                    <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:"#f1f5f9"}}>Mi Cartera</div></div>
-                    {os&&<div style={{textAlign:"right"}}><div style={{fontSize:12,fontWeight:800,color:"#10b981"}}>{fC(os.neta)}</div></div>}
-                  </div>
-                  {os&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(75px,1fr))",gap:6}}>{[{l:"Capital",v:fC(os.cap),c:"#3b82f6"},{l:"Ganancia",v:fC(os.gan),c:"#f59e0b"},{l:"Perdidas",v:fC(os.perd),c:"#ef4444"},{l:"Neta",v:fC(os.neta),c:"#10b981"}].map((x,i)=>(
-                    <div key={i} style={{background:"#0f172a",borderRadius:5,padding:"6px 7px",textAlign:"center"}}><div style={{fontSize:9,color:"#64748b"}}>{x.l}</div><div style={{fontSize:11,fontWeight:700,color:x.c}}>{x.v}</div></div>
-                  ))}</div>}
-                </div>
-                {Object.values(ws).map((w,i)=>(
-                  <div key={i} style={{background:"#1e293b",borderRadius:10,padding:13,border:"1px solid #8b5cf622"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:10}}>
-                      <div style={{width:34,height:34,borderRadius:"50%",background:"#8b5cf620",border:"2px solid #8b5cf6",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:"#8b5cf6",fontSize:13}}>{w.nombre[0]}</div>
-                      <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:"#f1f5f9"}}>{w.nombre}</div></div>
-                      <div style={{textAlign:"right"}}><div style={{fontSize:12,fontWeight:800,color:"#10b981"}}>{fC(w.util)}</div></div>
+              <h2 style={{fontSize:18,fontWeight:700,color:"#f1f5f9",marginBottom:4}}>📒 Libro Contable</h2>
+              <p style={{fontSize:11,color:"#64748b",marginBottom:14}}>Historial completo año por año. Los datos se guardan mientras existan los clientes.</p>
+              {anios.length===0&&<div style={{textAlign:"center",padding:40,color:"#475569"}}><div style={{fontSize:28}}>📒</div><div style={{marginTop:6,fontSize:13}}>Sin registros aun.</div></div>}
+              {anios.map(anio=>{
+                const meses=porAnio[anio];
+                const tg=meses.reduce((s,d)=>s+d.g,0);
+                const tp=meses.reduce((s,d)=>s+d.p,0);
+                const tn=tg-tp;
+                return(
+                  <div key={anio} style={{marginBottom:20}}>
+                    <div style={{background:"linear-gradient(135deg,#1e293b,#0f172a)",borderRadius:"12px 12px 0 0",padding:"12px 16px",border:"1px solid #334155",borderBottom:"2px solid #f59e0b",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <div style={{fontSize:18,fontWeight:900,color:"#f59e0b"}}>{anio}</div>
+                      <div style={{display:"flex",gap:12}}>
+                        <div style={{textAlign:"right"}}><div style={{fontSize:9,color:"#64748b"}}>GANANCIA</div><div style={{fontSize:13,fontWeight:800,color:"#f59e0b"}}>{fC(tg)}</div></div>
+                        <div style={{textAlign:"right"}}><div style={{fontSize:9,color:"#64748b"}}>PERDIDAS</div><div style={{fontSize:13,fontWeight:800,color:"#ef4444"}}>{fC(tp)}</div></div>
+                        <div style={{textAlign:"right"}}><div style={{fontSize:9,color:"#64748b"}}>NETO</div><div style={{fontSize:14,fontWeight:900,color:tn>=0?"#10b981":"#ef4444"}}>{fC(tn)}</div></div>
+                      </div>
                     </div>
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(75px,1fr))",gap:6}}>{[{l:"Capital",v:fC(w.cap),c:"#3b82f6"},{l:"Ganancia",v:fC(w.gan),c:"#f59e0b"},{l:"Perdidas",v:fC(w.perd),c:"#ef4444"},{l:"Utilidad",v:fC(w.util),c:"#10b981"}].map((x,i2)=>(
-                      <div key={i2} style={{background:"#0f172a",borderRadius:5,padding:"6px 7px",textAlign:"center"}}><div style={{fontSize:9,color:"#64748b"}}>{x.l}</div><div style={{fontSize:11,fontWeight:700,color:x.c}}>{x.v}</div></div>
-                    ))}</div>
+                    <div style={{border:"1px solid #334155",borderTop:"none",borderRadius:"0 0 12px 12px",overflow:"hidden"}}>
+                      {meses.map((d,i)=>{
+                        const mes=parseInt(d.label.split("-")[1]);
+                        const color=d.n>0?"#10b981":d.n<0?"#ef4444":"#64748b";
+                        return(
+                          <div key={i} style={{display:"grid",gridTemplateColumns:"80px 1fr 1fr 1fr 1fr",padding:"10px 14px",borderBottom:i<meses.length-1?"1px solid #0f172a":"none",background:i%2===0?"#1e293b":"#162032",alignItems:"center"}}>
+                            <div style={{fontSize:12,fontWeight:700,color:"#f1f5f9"}}>{nomMes[mes-1]}</div>
+                            <div>
+                              <div style={{fontSize:9,color:"#64748b"}}>Prestado</div>
+                              <div style={{fontSize:11,fontWeight:700,color:"#3b82f6"}}>{d.pr>0?fC(d.pr):"-"}</div>
+                            </div>
+                            <div>
+                              <div style={{fontSize:9,color:"#64748b"}}>Ganancia</div>
+                              <div style={{fontSize:11,fontWeight:700,color:"#f59e0b"}}>{d.g>0?fC(d.g):"-"}</div>
+                            </div>
+                            <div>
+                              <div style={{fontSize:9,color:"#64748b"}}>Perdida</div>
+                              <div style={{fontSize:11,fontWeight:700,color:"#ef4444"}}>{d.p>0?"-"+fC(d.p):"-"}</div>
+                            </div>
+                            <div style={{textAlign:"right"}}>
+                              <div style={{fontSize:9,color:"#64748b"}}>Neto</div>
+                              <div style={{fontSize:12,fontWeight:800,color:color}}>{fC(d.n)}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div style={{display:"grid",gridTemplateColumns:"80px 1fr 1fr 1fr 1fr",padding:"10px 14px",background:"#0f172a",borderTop:"2px solid #334155",alignItems:"center"}}>
+                        <div style={{fontSize:11,fontWeight:700,color:"#94a3b8"}}>TOTAL {anio}</div>
+                        <div><div style={{fontSize:11,fontWeight:800,color:"#3b82f6"}}>{fC(meses.reduce((s,d)=>s+d.pr,0))}</div></div>
+                        <div><div style={{fontSize:11,fontWeight:800,color:"#f59e0b"}}>{fC(tg)}</div></div>
+                        <div><div style={{fontSize:11,fontWeight:800,color:"#ef4444"}}>{tp>0?"-"+fC(tp):"-"}</div></div>
+                        <div style={{textAlign:"right"}}><div style={{fontSize:13,fontWeight:900,color:tn>=0?"#10b981":"#ef4444"}}>{fC(tn)}</div></div>
+                      </div>
+                    </div>
                   </div>
-                ))}
-                {Object.keys(ws).length===0&&<div style={{textAlign:"center",padding:30,color:"#475569",fontSize:12}}>Toca Actualizar para cargar los datos.</div>}
-              </div>
+                );
+              })}
             </div>
           );
         })()}
-      </div>
 
       {toast&&<div style={{position:"fixed",top:65,left:"50%",transform:"translateX(-50%)",background:"#10b981",color:"white",borderRadius:10,padding:"11px 20px",fontSize:13,fontWeight:700,zIndex:3000,boxShadow:"0 4px 20px rgba(0,0,0,0.4)",whiteSpace:"nowrap"}}>{toast}</div>}
 
@@ -927,7 +916,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
               <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Cuotas ya pagadas</label><input type="number" value={form.yapag} onChange={e=>setForm(p=>({...p,yapag:e.target.value}))} placeholder="0" style={INP}/></div>
               <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Cuota a cobrar (opcional)</label><input type="text" inputMode="numeric" value={form.cuotaP} onChange={e=>{const r=pN(e.target.value);setForm(p=>({...p,cuotaP:r?fN(r):""}));}} placeholder="Opcional" style={INP}/></div>
               <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Frecuencia</label><select value={form.frecuencia} onChange={e=>setForm(p=>({...p,frecuencia:e.target.value}))} style={{...INP,cursor:"pointer"}}>{FREQ.map(f=><option key={f} value={f}>{f.charAt(0).toUpperCase()+f.slice(1)}</option>)}</select></div>
-
+              <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>{form.frecuencia==="semanal"?"Dia de cobro (dia de semana)":"Dia de cobro (dia del mes)"} <span style={{color:"#64748b",fontWeight:400}}>(opcional)</span></label>{form.frecuencia==="semanal"?<select value={form.diaCobro} onChange={e=>setForm(p=>({...p,diaCobro:e.target.value}))} style={{...INP,cursor:"pointer"}}><option value="">Sin dia fijo</option>{["Lunes","Martes","Miercoles","Jueves","Viernes","Sabado","Domingo"].map(d=><option key={d} value={d}>{d}</option>)}</select>:<input type="number" min="1" max="31" value={form.diaCobro} onChange={e=>setForm(p=>({...p,diaCobro:e.target.value}))} placeholder="Ej: 15" style={INP}/>}</div>
               <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Fecha inicio</label><input type="date" value={form.fechaInicio} onChange={e=>setForm(p=>({...p,fechaInicio:e.target.value}))} style={INP}/></div>
               <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Estado</label><select value={form.estado} onChange={e=>setForm(p=>({...p,estado:e.target.value}))} style={{...INP,cursor:"pointer"}}>{EST.map(e=><option key={e} value={e}>{e.charAt(0).toUpperCase()+e.slice(1)}</option>)}</select></div>
               {pN(form.monto)>0&&Number(form.tasa)>0&&Number(form.cuotas)>0&&(()=>{
@@ -1368,6 +1357,9 @@ function App(){
     </div>
   );
 }
+
+const domRoot=ReactDOM.createRoot(document.getElementById("root"));
+domRoot.render(<App/>);
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 
