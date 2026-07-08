@@ -230,10 +230,12 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
         let atr=0,nAtr=0;
         cl.forEach(c=>{
           if(c.fechaInicio&&c.fechaInicio.startsWith(label))pr+=c.monto;
-          if(c.estado==="pagado"){const lastPago=(c.historialPagos||[]).filter(f=>f).slice(-1)[0];if(lastPago&&lastPago.startsWith(label))g+=(qR(c)*c.cuotas-c.monto);}
+          // ganancia via ganHist por fechaInicio
           if(c.estado==="perdida"&&c.fechaInicio&&c.fechaInicio.startsWith(label))p+=capitalPerdido(c);
           if(c.estado==="atrasado"){atr+=cS(c);nAtr++;}
         });
+        // Ganancia del mes desde ganHist por fechaInicio
+        ganHist.filter(gh=>gh.fecha&&gh.fecha.startsWith(label)).forEach(gh=>{g+=gh.ganancia;});
         ms.push({label,g:Math.round(g),p:Math.round(p),n:Math.round(g-p),pr:Math.round(pr),atr:Math.round(atr),nAtr});
         m++;
       }y++;
