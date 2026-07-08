@@ -170,12 +170,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     const mn=new Date();const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
     // Prestado este mes = monto actual si inicio/renovacion este mes
     // + montos de renovaciones anteriores que ocurrieron este mes
-    let capMes=0;
-    cl.filter(c=>c.estado!=="perdida").forEach(c=>{
-      if(c.fechaInicio&&c.fechaInicio.startsWith(mlb))capMes+=c.monto;
-      else if(c.fechaRenovacion&&c.fechaRenovacion.startsWith(mlb))capMes+=c.monto;
-      (c.renovaciones||[]).forEach(r=>{if(r.fecha&&r.fecha.startsWith(mlb))capMes+=r.montoAnterior||0;});
-    });
+    const capMes=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0);
     // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
     const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{
       const capPorCuota=c.monto/c.cuotas;
@@ -642,12 +637,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
               const mn=new Date();const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
     // Prestado este mes = monto actual si inicio/renovacion este mes
     // + montos de renovaciones anteriores que ocurrieron este mes
-    let capMes=0;
-    cl.filter(c=>c.estado!=="perdida").forEach(c=>{
-      if(c.fechaInicio&&c.fechaInicio.startsWith(mlb))capMes+=c.monto;
-      else if(c.fechaRenovacion&&c.fechaRenovacion.startsWith(mlb))capMes+=c.monto;
-      (c.renovaciones||[]).forEach(r=>{if(r.fecha&&r.fecha.startsWith(mlb))capMes+=r.montoAnterior||0;});
-    });
+    const capMes=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0);
     // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
     const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{
       const capPorCuota=c.monto/c.cuotas;
