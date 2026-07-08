@@ -171,6 +171,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     // Prestado este mes = monto actual si inicio/renovacion este mes
     // + montos de renovaciones anteriores que ocurrieron este mes
     const capMes=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0);
+    const ganAprox=cl.filter(c=>(c.estado==="activo"||c.estado==="atrasado")&&c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0);
     // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
     const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{
       const capPorCuota=c.monto/c.cuotas;
@@ -213,7 +214,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       if(c.frecuencia==="diario")return !(c.historialPagos||[]).some(f=>f===fh);
       return false;
     });
-    return{...st,gan:ganTotal,neta:ganFinal,capMes,capCalleNeto:Math.round(capCalleNeto),mesMonto:Math.round(mg),ph,cobroHoy,pag:cl.filter(c=>c.estado==="pagado").length,perN:cl.filter(c=>c.estado==="perdida").length};
+    return{...st,gan:ganTotal,neta:ganFinal,capMes,capCalleNeto:Math.round(capCalleNeto),mesMonto:Math.round(mg),ganAprox:Math.round(ganAprox),ph,cobroHoy,pag:cl.filter(c=>c.estado==="pagado").length,perN:cl.filter(c=>c.estado==="perdida").length};
   },[cl,ganHist,capHist]);
 
   const filt=useMemo(()=>cl.filter(c=>(fil==="todos"||c.estado===fil)&&c.nombre.toLowerCase().includes(busq.toLowerCase())).slice().reverse(),[cl,fil,busq]);
@@ -399,6 +400,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                 {l:"Calle c/Intereses",v:fC(stats.capActivo),s:"lo que falta cobrar",ic:"💰",c:"#3b82f6",bg:"#1e3a5f"},
                 {l:"Calle sin Intereses",v:fC(stats.capCalleNeto),s:"capital puro en calle",ic:"💵",c:"#06b6d4",bg:"#0c2a35"},
                 {l:"Ganancia del Mes",v:fC(stats.mesMonto),s:"mes actual",ic:"📅",c:"#0ea5e9",bg:"#0c2233",go:"historial"},
+                {l:"Estimado a Ganar",v:fC(stats.ganAprox),s:"intereses del mes",ic:"🎯",c:"#a78bfa",bg:"#1e1b4b"},
                 {l:"Prestado Este Mes",v:fC(stats.capMes),s:"capital nuevo este mes",ic:"📅",c:"#a78bfa",bg:"#1e1b4b"},
                 {l:"Atrasados",v:fC(stats.atrasD),s:stats.atr+" cliente(s)",ic:"🕐",c:"#fb923c",bg:"#2c1810",go:"clientes",gof:"atrasado"},
                 {l:"Perdidas",v:fC(stats.perd),s:"incobrables",ic:"⚠️",c:"#f87171",bg:"#2c1515",go:"clientes",gof:"perdida"},
@@ -640,6 +642,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     // Prestado este mes = monto actual si inicio/renovacion este mes
     // + montos de renovaciones anteriores que ocurrieron este mes
     const capMes=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0);
+    const ganAprox=cl.filter(c=>(c.estado==="activo"||c.estado==="atrasado")&&c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0);
     // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
     const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{
       const capPorCuota=c.monto/c.cuotas;
