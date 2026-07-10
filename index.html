@@ -70,6 +70,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
   const [showExcel,setShowExcel]=useState(false);
   const [confirmDel,setConfirmDel]=useState(null);
   const [filtFrec,setFiltFrec]=useState(null);
+  const [filtDia,setFiltDia]=useState(null);
   const [confirmReset,setConfirmReset]=useState(false);
   const [resetTxt,setResetTxt]=useState("");
   const [ganHist,setGanHist]=useState([]);
@@ -97,8 +98,10 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
   useEffect(()=>{
     (async()=>{
       const rc=await gSt(SK);if(rc)setCl(JSON.parse(rc));
-      const rg=await gSt(SK+"_gan");if(rg)setGanHist(JSON.parse(rg));
-      const rch=await gSt(SK+"_caphist");if(rch)setCapHist(JSON.parse(rch));
+      const rg=await gSt(SK+"_gan");
+      if(rg){try{setGanHist(typeof rg==="string"?JSON.parse(rg):rg);}catch(e){setGanHist([]);}}
+      const rch=await gSt(SK+"_caphist");
+      if(rch){try{setCapHist(typeof rch==="string"?JSON.parse(rch):rch);}catch(e){setCapHist(0);}}
       const rcm=await gSt(SK+"_cierres_mes");
       const cierresIni=rcm?JSON.parse(rcm):[];
       setCierresMes(cierresIni);
@@ -325,11 +328,17 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
   function regRen(id){
     const m=pN(renF.monto),t=Number(renF.tasa),q=Number(renF.cuotas);if(!m||!t||!q)return;
     const c0=cl.find(x=>x.id===id);if(!c0)return;
-    // Save old monto to capital historico (so it shows in Capital Prestado)
+    // Save ganancia del prestamo anterior a ganHist
+    if(c0.estado==="pagado"){
+      const ganAnterior=Math.max(0,qR(c0)*c0.cuotas-c0.monto-(c0.descuento||0));
+      const nuevaGan=[...ganHist,{id:c0.id+"_ren_"+hoy(),clienteId:c0.id,ganancia:ganAnterior,fecha:c0.fechaInicio||hoy()}];
+      setGanHist(nuevaGan);sSt(SK+"_gan",JSON.stringify(nuevaGan));
+    }
+    // Save old monto to capital historico
     const nuevoCap=capHist+c0.monto;
     setCapHist(nuevoCap);
     sSt(SK+"_caphist",JSON.stringify(nuevoCap));
-    // Reset same client with new loan — no ganHist yet (client hasn't paid)
+    // Reset same client with new loan
     const u=cl.map(c=>{
       if(c.id!==id)return c;
       return{...c,monto:m,tasa:t,frecuencia:renF.frecuencia,cuotas:q,
@@ -467,13 +476,20 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
               </div>
               {filtFrec&&(
                 <div style={{borderTop:"1px solid #334155",paddingTop:9}}>
-                  {cl.filter(c=>c.frecuencia===filtFrec&&(c.estado==="activo"||c.estado==="atrasado")).map((c,i)=>{
+                  {filtFrec==="semanal"&&(
+                    <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
+                      {["Lunes","Martes","Miercoles","Jueves","Viernes","Sabado"].map(d=>(
+                        <button key={d} onClick={()=>setFiltDia(filtDia===d?null:d)} style={{background:filtDia===d?"#8b5cf6":"#0f172a",color:filtDia===d?"white":"#94a3b8",border:"1px solid "+(filtDia===d?"#8b5cf6":"#334155"),borderRadius:6,padding:"4px 8px",fontSize:10,fontWeight:600,cursor:"pointer"}}>{d}</button>
+                      ))}
+                    </div>
+                  )}
+                  {cl.filter(c=>c.frecuencia===filtFrec&&(c.estado==="activo"||c.estado==="atrasado")&&(filtFrec!=="semanal"||!filtDia||c.diaCobro===filtDia)).map((c,i)=>{
                     const col=filtFrec==="diario"?"#06b6d4":filtFrec==="semanal"?"#8b5cf6":filtFrec==="quincenal"?"#f59e0b":"#10b981";
                     return(
                       <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 9px",background:"#0f172a",borderRadius:7,marginBottom:4,border:"1px solid "+col+"22"}}>
                         <div>
                           <div style={{fontSize:12,fontWeight:700,color:"#f1f5f9"}}>{c.nombre}</div>
-                          <div style={{fontSize:10,color:"#64748b"}}>{fC(cS(c))} pendiente · {c.cuotasPagadas}/{c.cuotas} cuotas</div>
+                          <div style={{fontSize:10,color:"#64748b"}}>{fC(cS(c))} pendiente · {c.cuotasPagadas}/{c.cuotas} cuotas{c.diaCobro?" · "+c.diaCobro:""}</div>
                         </div>
                         <div style={{fontSize:11,fontWeight:700,color:col}}>{fC(qR(c))}</div>
                       </div>
