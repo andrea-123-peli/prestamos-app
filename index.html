@@ -2055,7 +2055,7 @@ let _guardarTimer=null;
                       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
                         <div style={{fontWeight:800,fontSize:15}}>{e2.nom}</div>
                         <div style={{display:'flex',gap:6}}>
-                          <Btn sm col={C.ye} onClick={()=>{setAdelModal({nom:e2.nom,tipo:'taller'});setAdelMonto('');setAdelDesc('');setAdelFecha(hoy());}} ch="+ Adelanto"/>
+                          <Btn sm col={C.ye} onClick={()=>{setAdelModal({nom:e2.nom,tipo:'taller'});setAdelMonto('');setAdelDesc('');setAdelFecha(hoy());}} ch="💰 Adelanto Taller"/>
                           <Btn sm col={C.re} onClick={()=>{sEmps(emps.filter(x=>x.nom!==e2.nom));sEmpProd(empProd.filter(p=>p.empleado!==e2.nom));toast2(e2.nom+' eliminado','info');}} ch="Eliminar"/>
                         </div>
                       </div>
@@ -2083,7 +2083,7 @@ let _guardarTimer=null;
                         ))}
                       </div>
                       {(()=>{
-                        const adelEmp=adelantos.filter(a=>a.nom===e2.nom&&!a.pagado&&a.tipo==='taller');
+                        const adelEmp=adelantos.filter(a=>a.nom===e2.nom&&!a.pagado&&(!a.tipo||a.tipo==='taller'));
                         const totalAdel=adelEmp.reduce((a,b)=>a+b.monto,0);
                         const pagoReal=Math.max(0,pagoSem-totalAdel);
                         return pagoSem>0&&(
@@ -2093,7 +2093,7 @@ let _guardarTimer=null;
                                 <div style={{fontSize:10,color:C.re,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Adelantos pendientes</div>
                                 {adelEmp.map((a,i)=>(
                                   <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:2}}>
-                                    <span style={{color:C.mu}}>{a.fecha} — {a.desc||'Adelanto'}</span>
+                                    <span style={{color:C.mu}}>{a.fecha} — {a.desc||'Adelanto'} {a.tipo==='lavadero'?'🚿':'🔧'}</span>
                                     <span style={{color:C.re,fontWeight:700}}>{fm(a.monto)}</span>
                                   </div>
                                 ))}
@@ -2171,7 +2171,7 @@ let _guardarTimer=null;
                   const tot60Bruto=filPend.reduce((a,b)=>a+(b.emp60||0),0);
                   // Descontar adelantos pendientes de los empleados en el filtro
                   const empsEnFil=[...new Set(filPend.map(p=>p.empleado))];
-                  const adelPendFil=adelantos.filter(a=>!a.pagado&&a.tipo==='taller'&&empsEnFil.includes(a.nom)).reduce((a,b)=>a+b.monto,0);
+                  const adelPendFil=adelantos.filter(a=>!a.pagado&&(!a.tipo||a.tipo==='taller')&&empsEnFil.includes(a.nom)).reduce((a,b)=>a+b.monto,0);
                   const tot60=Math.max(0,tot60Bruto-adelPendFil);
                   const tot40=fil.reduce((a,b)=>a+b.neg40,0);
                   const porEmp={};
@@ -2337,7 +2337,7 @@ let _guardarTimer=null;
                       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
                         <div style={{fontWeight:800,fontSize:14}}>🚿 {e2.nom}</div>
                         <div style={{display:'flex',gap:6}}>
-                          <Btn sm col={C.ye} onClick={()=>{setAdelModal({nom:e2.nom,tipo:'lavadero'});setAdelMonto('');setAdelDesc('');setAdelFecha(hoy());}} ch="+ Adelanto"/>
+                          <Btn sm col={C.ye} onClick={()=>{setAdelModal({nom:e2.nom,tipo:'lavadero'});setAdelMonto('');setAdelDesc('');setAdelFecha(hoy());}} ch="💰 Adelanto Lavadero"/>
                           <Btn sm col={C.re} onClick={()=>{sLavEmps(lavEmps.filter(x=>x.nom!==e2.nom));sLavProd(lavProd.filter(p=>p.empleado!==e2.nom));toast2(e2.nom+' eliminado','info');}} ch="Eliminar"/>
                         </div>
                       </div>
@@ -2370,7 +2370,7 @@ let _guardarTimer=null;
                                 <div style={{fontSize:10,color:C.re,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Adelantos pendientes</div>
                                 {adelEmpL.map((a,i)=>(
                                   <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:2}}>
-                                    <span style={{color:C.mu}}>{a.fecha} — {a.desc||'Adelanto'}</span>
+                                    <span style={{color:C.mu}}>{a.fecha} — {a.desc||'Adelanto'} {a.tipo==='lavadero'?'🚿':'🔧'}</span>
                                     <span style={{color:C.re,fontWeight:700}}>{fm(a.monto)}</span>
                                   </div>
                                 ))}
@@ -2532,7 +2532,10 @@ let _guardarTimer=null;
       {/* Modal Adelanto */}
       <Modal open={!!adelModal} onClose={()=>setAdelModal(null)} ch={adelModal&&(
         <div>
-          <div style={{fontSize:18,fontWeight:800,color:C.ye,marginBottom:16}}>💰 Registrar Adelanto — {adelModal.nom}</div>
+          <div style={{fontSize:18,fontWeight:800,color:C.ye,marginBottom:4}}>💰 Registrar Adelanto — {adelModal.nom}</div>
+          <div style={{fontSize:12,color:C.mu,marginBottom:16,background:C.su,borderRadius:6,padding:'4px 10px',display:'inline-block'}}>
+            {adelModal.tipo==='taller'?'🔧 Taller':'🚿 Lavadero'}
+          </div>
           <FG lbl="Fecha" ch={<Inp v={adelFecha||hoy()} s={setAdelFecha} type="date"/>}/>
           <FG lbl="Descripcion (para qué fue)" ch={<Inp v={adelDesc} s={setAdelDesc} ph="Ej: Para almuerzo, transporte..."/>}/>
           <FG lbl="Monto ($)" ch={<Inp v={adelMonto} s={setAdelMonto} type="number" ph="0" style={{borderColor:C.ye}}/>}/>
