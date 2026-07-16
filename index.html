@@ -328,12 +328,6 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
   function regRen(id){
     const m=pN(renF.monto),t=Number(renF.tasa),q=Number(renF.cuotas);if(!m||!t||!q)return;
     const c0=cl.find(x=>x.id===id);if(!c0)return;
-    // Save ganancia del prestamo anterior a ganHist
-    if(c0.estado==="pagado"){
-      const ganAnterior=Math.max(0,qR(c0)*c0.cuotas-c0.monto-(c0.descuento||0));
-      const nuevaGan=[...ganHist,{id:c0.id+"_ren_"+hoy(),clienteId:c0.id,ganancia:ganAnterior,fecha:c0.fechaInicio||hoy()}];
-      setGanHist(nuevaGan);sSt(SK+"_gan",JSON.stringify(nuevaGan));
-    }
     // Save old monto to capital historico
     const nuevoCap=capHist+c0.monto;
     setCapHist(nuevoCap);
@@ -480,6 +474,22 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                     <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
                       {["Lunes","Martes","Miercoles","Jueves","Viernes","Sabado"].map(d=>(
                         <button key={d} onClick={()=>setFiltDia(filtDia===d?null:d)} style={{background:filtDia===d?"#8b5cf6":"#0f172a",color:filtDia===d?"white":"#94a3b8",border:"1px solid "+(filtDia===d?"#8b5cf6":"#334155"),borderRadius:6,padding:"4px 8px",fontSize:10,fontWeight:600,cursor:"pointer"}}>{d}</button>
+                      ))}
+                    </div>
+                  )}
+                  {filtFrec==="quincenal"&&(
+                    <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8,alignItems:"center"}}>
+                      <span style={{fontSize:10,color:"#64748b"}}>Dia:</span>
+                      {["1","5","6","10","15","16","20","21","25","30"].map(d=>(
+                        <button key={d} onClick={()=>setFiltDia(filtDia===d?null:d)} style={{background:filtDia===d?"#f59e0b":"#0f172a",color:filtDia===d?"#0f172a":"#94a3b8",border:"1px solid "+(filtDia===d?"#f59e0b":"#334155"),borderRadius:6,padding:"4px 8px",fontSize:10,fontWeight:700,cursor:"pointer"}}>{d}</button>
+                      ))}
+                    </div>
+                  )}
+                  {filtFrec==="mensual"&&(
+                    <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8,alignItems:"center"}}>
+                      <span style={{fontSize:10,color:"#64748b"}}>Dia del mes:</span>
+                      {["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","23","24","25","26","27","28","29","30","31"].map(d=>(
+                        <button key={d} onClick={()=>setFiltDia(filtDia===d?null:d)} style={{background:filtDia===d?"#10b981":"#0f172a",color:filtDia===d?"white":"#94a3b8",border:"1px solid "+(filtDia===d?"#10b981":"#334155"),borderRadius:6,padding:"4px 6px",fontSize:9,fontWeight:700,cursor:"pointer",minWidth:22}}>{d}</button>
                       ))}
                     </div>
                   )}
