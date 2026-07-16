@@ -218,7 +218,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       if(c.frecuencia==="diario")return !(c.historialPagos||[]).some(f=>f===fh);
       return false;
     });
-    return{...st,gan:ganTotal,neta:ganFinal,capMes,capCalleNeto:Math.round(capCalleNeto),mesMonto:Math.round(mg),ganAprox:Math.round(ganAprox),ph,cobroHoy,pag:cl.filter(c=>c.estado==="pagado").length,perN:cl.filter(c=>c.estado==="perdida").length};
+    return{...st,gan:ganTotal,neta:ganFinal,capMes,capCalleNeto:Math.round(capCalleNeto),mesMonto:Math.round(mg),mesAnterior:Math.round(ganHist.filter(g=>{const ma=new Date();ma.setMonth(ma.getMonth()-1);const mlbA=ma.getFullYear()+"-"+String(ma.getMonth()+1).padStart(2,"0");return g.fecha&&g.fecha.startsWith(mlbA);}).reduce((s,g)=>s+g.ganancia,0)),ganAprox:Math.round(ganAprox),ph,cobroHoy,pag:cl.filter(c=>c.estado==="pagado").length,perN:cl.filter(c=>c.estado==="perdida").length};
   },[cl,ganHist,capHist]);
 
   const filt=useMemo(()=>cl.filter(c=>(fil==="todos"||c.estado===fil)&&c.nombre.toLowerCase().includes(busq.toLowerCase())).slice().reverse(),[cl,fil,busq]);
@@ -336,9 +336,9 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     const u=cl.map(c=>{
       if(c.id!==id)return c;
       return{...c,monto:m,tasa:t,frecuencia:renF.frecuencia,cuotas:q,
-        cuotaPersonalizada:0,fechaInicio:renF.fechaInicio,
+        cuotaPersonalizada:pN(renF.cuotaP)||0,fechaInicio:renF.fechaInicio,
         cuotasPagadas:0,cuotasPorBoton:0,historialPagos:[],abonos:[],
-        estado:"activo",fechaPerdida:null,descuento:0,fechaRenovacion:hoy(),
+        estado:"activo",fechaPerdida:null,descuento:0,fechaRenovacion:hoy(),ultimoPago:hoy(),
         renovaciones:[...(c.renovaciones||[]),{fecha:hoy(),montoAnterior:c0.monto}]
       };
     });
@@ -404,6 +404,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                 {l:"Calle c/Intereses",v:fC(stats.capActivo),s:"lo que falta cobrar",ic:"💰",c:"#3b82f6",bg:"#1e3a5f"},
                 {l:"Calle sin Intereses",v:fC(stats.capCalleNeto),s:"capital puro en calle",ic:"💵",c:"#06b6d4",bg:"#0c2a35"},
                 {l:"Ganancia del Mes",v:fC(stats.mesMonto),s:"mes actual",ic:"📅",c:"#0ea5e9",bg:"#0c2233",go:"historial"},
+                {l:"Mes Anterior",v:fC(stats.mesAnterior),s:"mes pasado",ic:"📅",c:"#6366f1",bg:"#1e1b4b",go:"historial"},
                 {l:"Estimado a Ganar",v:fC(stats.ganAprox),s:"intereses del mes",ic:"🎯",c:"#a78bfa",bg:"#1e1b4b"},
                 {l:"Prestado Este Mes",v:fC(stats.capMes),s:"capital nuevo este mes",ic:"📅",c:"#a78bfa",bg:"#1e1b4b"},
                 {l:"Atrasados",v:fC(stats.atrasD),s:stats.atr+" cliente(s)",ic:"🕐",c:"#fb923c",bg:"#2c1810",go:"clientes",gof:"atrasado"},
@@ -493,7 +494,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                       ))}
                     </div>
                   )}
-                  {cl.filter(c=>c.frecuencia===filtFrec&&(c.estado==="activo"||c.estado==="atrasado")&&(filtFrec!=="semanal"||!filtDia||c.diaCobro===filtDia)).map((c,i)=>{
+                  {cl.filter(c=>c.frecuencia===filtFrec&&(c.estado==="activo"||c.estado==="atrasado")&&(!filtDia||(c.diaCobro||"").split("-").map(d=>d.trim()).includes(filtDia))).map((c,i)=>{
                     const col=filtFrec==="diario"?"#06b6d4":filtFrec==="semanal"?"#8b5cf6":filtFrec==="quincenal"?"#f59e0b":"#10b981";
                     return(
                       <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 9px",background:"#0f172a",borderRadius:7,marginBottom:4,border:"1px solid "+col+"22"}}>
@@ -601,6 +602,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                     <div>
                       <div style={{fontSize:16,fontWeight:800,color:"#f1f5f9"}}>{c.nombre}</div>
                       <div style={{fontSize:10,color:"#64748b",display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}><input type="date" value={c.fechaInicio} onChange={e=>{const u=cl.map(x=>x.id===c.id?{...x,fechaInicio:e.target.value}:x);save(u);if(det&&det.id===c.id)setDet(u.find(x=>x.id===c.id));}} style={{background:"transparent",border:"none",color:"#64748b",fontSize:10,outline:"none",cursor:"pointer"}}/> · {c.frecuencia} · {c.frecuencia==="semanal"?<select value={c.diaCobro||""} onChange={e=>{const u=cl.map(x=>x.id===c.id?{...x,diaCobro:e.target.value}:x);save(u);if(det&&det.id===c.id)setDet(u.find(x=>x.id===c.id));}} style={{background:"transparent",border:"none",color:"#8b5cf6",fontSize:10,outline:"none",cursor:"pointer"}}><option value="">Sin dia</option>{["Lunes","Martes","Miercoles","Jueves","Viernes","Sabado"].map(d=><option key={d} value={d}>{d}</option>)}</select>:<input type="text" value={c.diaCobro||""} onChange={e=>{const u=cl.map(x=>x.id===c.id?{...x,diaCobro:e.target.value}:x);save(u);if(det&&det.id===c.id)setDet(u.find(x=>x.id===c.id));}} placeholder="Dia cobro" style={{background:"transparent",border:"none",color:"#8b5cf6",fontSize:10,outline:"none",cursor:"pointer",width:60}}/>}</div>
+                      {c.ultimoPago&&<div style={{fontSize:10,color:"#10b981",marginTop:3}}>✓ Último pago: {c.ultimoPago}</div>}
                     </div>
                   </div>
                   <span style={{padding:"3px 9px",borderRadius:20,background:col.bg,color:col.text,fontSize:10,fontWeight:700}}>{c.estado.toUpperCase()}</span>
@@ -1029,6 +1031,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
               <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Tasa (%)</label><input type="number" value={renF.tasa} onChange={e=>setRenF(p=>({...p,tasa:e.target.value}))} style={INP}/></div>
               <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Cuotas</label><input type="number" value={renF.cuotas} onChange={e=>setRenF(p=>({...p,cuotas:e.target.value}))} style={INP}/></div>
               <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Frecuencia</label><select value={renF.frecuencia} onChange={e=>setRenF(p=>({...p,frecuencia:e.target.value}))} style={{...INP,cursor:"pointer"}}>{FREQ.map(f=><option key={f} value={f}>{f.charAt(0).toUpperCase()+f.slice(1)}</option>)}</select></div>
+              <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Cuota a cobrar ($) <span style={{color:"#64748b",fontWeight:400}}>(opcional)</span></label><input type="text" inputMode="numeric" value={renF.cuotaP||""} onChange={e=>{const r=pN(e.target.value);setRenF(p=>({...p,cuotaP:r?fN(r):""}));}} placeholder="Vacío = calcula automático" style={INP}/></div>
               <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Fecha inicio</label><input type="date" value={renF.fechaInicio} onChange={e=>setRenF(p=>({...p,fechaInicio:e.target.value}))} style={INP}/></div>
             </div>
             <div style={{display:"flex",gap:7,marginTop:11}}>
