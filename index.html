@@ -83,7 +83,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
   const [gStats,setGStats]=useState({wStats:{},oStats:null});
   const [abM,setAbM]=useState("");
   const [abN,setAbN]=useState("");
-  const [renF,setRenF]=useState({monto:"",tasa:"",frecuencia:"mensual",cuotas:"",cuotaP:"",fechaInicio:hoy()});
+  const [renF,setRenF]=useState({monto:"",tasa:"",frecuencia:"mensual",cuotas:"",fechaInicio:hoy()});
   const [pinD,setPinD]=useState({});
   const [fil,setFil]=useState("todos");
   const [busq,setBusq]=useState("");
@@ -120,6 +120,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       // Auto close previous month if needed
       const clIni=rc?JSON.parse(rc):[];
       cerrarMesAutomatico(clIni,cierresIni);
+      const rci=await gSt(CK);if(rci)setCi(JSON.parse(rci));
       setLoading(false);
     })();
   },[]);
@@ -139,7 +140,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     let g=0,p=0,pr=0,atr=0,nAtr=0;
     clientes.forEach(c=>{
       if(c.fechaInicio&&c.fechaInicio.startsWith(labelMes))pr+=c.monto;
-      if(c.estado==="pagado"){const lastPago=(c.historialPagos||[]).filter(f=>f).slice(-1)[0];if(lastPago&&lastPago.startsWith(labelMes))g+=(qR(c)*c.cuotas-c.monto);}
+         // ganancia via ganHist
       if(c.estado==="perdida"&&c.fechaInicio&&c.fechaInicio.startsWith(labelMes))p+=cS(c);
       if(c.estado==="atrasado"){atr+=cS(c);nAtr++;}
     });
@@ -183,7 +184,12 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     const perdTotal=cl.filter(c=>c.estado==="perdida").reduce((s,c)=>s+capitalPerdido(c),0);
     const ganFinal=ganTotal-perdTotal;
     const mn=new Date();const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
-
+    // Prestado este mes = monto actual si inicio/renovacion este mes
+    // + montos de renovaciones anteriores que ocurrieron este mes
+    const capMes=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0);
+    const ganAprox=cl.filter(c=>(c.estado==="activo"||c.estado==="atrasado")&&c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0);
+    // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
+    const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{if(!c.cuotas||c.cuotas===0)return s+c.monto;const capPorCuota=c.monto/c.cuotas;const capDevuelto=c.cuotasPagadas*capPorCuota;return s+Math.max(0,c.monto-capDevuelto);},0);
     let mg=0;
     // Ganancia del mes viene SOLO de ganHist
     ganHist.filter(g=>g.fecha&&g.fecha.startsWith(mlb)).forEach(g=>{mg+=g.ganancia;});
@@ -343,7 +349,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     const u=cl.map(c=>{
       if(c.id!==id)return c;
       return{...c,monto:m,tasa:t,frecuencia:renF.frecuencia,cuotas:q,
-        cuotaPersonalizada:pN(renF.cuotaP)||0,fechaInicio:renF.fechaInicio,
+        cuotaPersonalizada:0,fechaInicio:renF.fechaInicio,
         cuotasPagadas:0,cuotasPorBoton:0,historialPagos:[],abonos:[],
         estado:"activo",fechaPerdida:null,descuento:0,fechaRenovacion:hoy(),
         renovaciones:[...(c.renovaciones||[]),{fecha:hoy(),montoAnterior:c0.monto}]
@@ -605,7 +611,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                   {(c.estado==="activo"||c.estado==="atrasado")&&c.cuotasPagadas<c.cuotas&&<button onClick={()=>regPago(c.id)} style={{background:"#10b981",color:"white",border:"none",borderRadius:7,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>{c.cuotasPagadas===0?"+ Anotar cuota":"+ Cuota "+c.cuotasPagadas}</button>}
                   {(c.estado==="activo"||c.estado==="atrasado")&&c.cuotasPagadas<c.cuotas&&<button onClick={()=>regTodo(c.id)} style={{background:"#0ea5e9",color:"white",border:"none",borderRadius:7,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Pago Total</button>}
                   {(c.estado==="activo"||c.estado==="atrasado"||c.estado==="perdida")&&<button onClick={()=>{setShowAb(true);setAbM("");setAbN("");}} style={{background:"#3b82f6",color:"white",border:"none",borderRadius:7,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Abono</button>}
-                  <button onClick={()=>{setShowRen(true);setRenF({monto:fN(c.monto),tasa:String(c.tasa),frecuencia:c.frecuencia,cuotas:String(c.cuotas),cuotaP:"",fechaInicio:hoy()});}} style={{background:"#f59e0b",color:"#0f172a",border:"none",borderRadius:7,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Renovar</button>
+                  <button onClick={()=>{setShowRen(true);setRenF({monto:fN(c.monto),tasa:String(c.tasa),frecuencia:c.frecuencia,cuotas:String(c.cuotas),fechaInicio:hoy()});}} style={{background:"#f59e0b",color:"#0f172a",border:"none",borderRadius:7,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Renovar</button>
                 </div>
               </div>
               {(c.abonos||[]).length>0&&(
@@ -674,7 +680,12 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
               const tc=hD.reduce((s,d)=>s+d.g,0);const tp=hD.reduce((s,d)=>s+d.p,0);const tn=tc-tp;
               const cap=cl.reduce((s,c)=>s+c.monto,0);const rend=cap>0?((tn/cap)*100).toFixed(1):"0.0";const meses=hD.length||1;
               const mn=new Date();const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
-
+    // Prestado este mes = monto actual si inicio/renovacion este mes
+    // + montos de renovaciones anteriores que ocurrieron este mes
+    const capMes=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0);
+    const ganAprox=cl.filter(c=>(c.estado==="activo"||c.estado==="atrasado")&&c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0);
+    // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
+    const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{if(!c.cuotas||c.cuotas===0)return s+c.monto;const capPorCuota=c.monto/c.cuotas;const capDevuelto=c.cuotasPagadas*capPorCuota;return s+Math.max(0,c.monto-capDevuelto);},0);
               const dMes=hD.find(x=>x.label===mlb);
               return(
                 <div style={{background:"#1e293b",borderRadius:11,padding:13,border:"1px solid #334155",marginBottom:12}}>
@@ -1010,7 +1021,6 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
               <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Tasa (%)</label><input type="number" value={renF.tasa} onChange={e=>setRenF(p=>({...p,tasa:e.target.value}))} style={INP}/></div>
               <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Cuotas</label><input type="number" value={renF.cuotas} onChange={e=>setRenF(p=>({...p,cuotas:e.target.value}))} style={INP}/></div>
               <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Frecuencia</label><select value={renF.frecuencia} onChange={e=>setRenF(p=>({...p,frecuencia:e.target.value}))} style={{...INP,cursor:"pointer"}}>{FREQ.map(f=><option key={f} value={f}>{f.charAt(0).toUpperCase()+f.slice(1)}</option>)}</select></div>
-              <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Cuota a cobrar ($) <span style={{color:"#64748b",fontWeight:400}}>(opcional)</span></label><input type="text" inputMode="numeric" value={renF.cuotaP} onChange={e=>{const r=pN(e.target.value);setRenF(p=>({...p,cuotaP:r?fN(r):""}));}} placeholder="Dejar vacío para calcular automático" style={INP}/></div>
               <div><label style={{fontSize:10,color:"#94a3b8",display:"block",marginBottom:2,fontWeight:600}}>Fecha inicio</label><input type="date" value={renF.fechaInicio} onChange={e=>setRenF(p=>({...p,fechaInicio:e.target.value}))} style={INP}/></div>
             </div>
             <div style={{display:"flex",gap:7,marginTop:11}}>
