@@ -120,7 +120,6 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       // Auto close previous month if needed
       const clIni=rc?JSON.parse(rc):[];
       cerrarMesAutomatico(clIni,cierresIni);
-      const rci=await gSt(CK);if(rci)setCi(JSON.parse(rci));
       setLoading(false);
     })();
   },[]);
