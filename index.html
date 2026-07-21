@@ -46,7 +46,7 @@ const sb=supabase.createClient(SURL,SKEY);
 const MEM={};
 async function dbGet(k){try{const{data}=await sb.from("prestamos_data").select("data").eq("id",k).single();return data?data.data:null;}catch(e){return null;}}
 async function dbSet(k,v){try{await sb.from("prestamos_data").upsert({id:k,data:v,updated_at:new Date().toISOString()});}catch(e){}}
-function sSt(k,v){MEM[k]=v;dbSet(k,JSON.parse(v));try{localStorage.setItem("mp_local_"+k,v);}catch(e){}}
+function sSt(k,v){MEM[k]=v;try{localStorage.setItem("mp_local_"+k,v);}catch(e){}dbSet(k,JSON.parse(v));}
 function clearSt(k){delete MEM[k];dbSet(k,null);try{localStorage.removeItem("mp_local_"+k);}catch(e){}}
 async function gSt(k){
   try{const v=await dbGet(k);if(v!==null&&v!==undefined){const s=JSON.stringify(v);MEM[k]=s;return s;}}catch(e){}
@@ -98,9 +98,11 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
   useEffect(()=>{
     (async()=>{
       const rc=await gSt(SK);if(rc)setCl(JSON.parse(rc));
+      // Load ganHist - try localStorage first for instant load
+      try{const lgStr=localStorage.getItem("mp_local_"+SK+"_gan");if(lgStr&&lgStr!=="null"){const lg=JSON.parse(lgStr);if(Array.isArray(lg)&&lg.length>0)setGanHist(lg);}}
+      catch(e){}
       const rg=await gSt(SK+"_gan");
-      if(rg){try{const p=typeof rg==="string"?JSON.parse(rg):rg;if(Array.isArray(p))setGanHist(p);}catch(e){}}
-      const rch=await gSt(SK+"_caphist");
+      if(rg){try{const p=typeof rg==="string"?JSON.parse(rg):rg;if(Array.isArray(p)&&p.length>=0)setGanHist(p);}catch(e){}}
       if(rch){try{setCapHist(typeof rch==="string"?JSON.parse(rch):rch);}catch(e){setCapHist(0);}}
       const rcm=await gSt(SK+"_cierres_mes");
       const cierresIni=rcm?JSON.parse(rcm):[];
@@ -191,6 +193,10 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       mg-=capitalPerdido(c);
     });
     const fh=hoy();const ph=[];
+    // Include clients renovated today
+    cl.forEach(c=>{
+      if(c.ultimoPago===fh&&c.estado==="activo")ph.push({nombre:c.nombre,tipo:"Renovado",monto:qR(c)});
+    });
     cl.forEach(c=>{
       (c.historialPagos||[]).forEach((f,i)=>{if(f===fh)ph.push({nombre:c.nombre,tipo:"Cuota "+(i+1),monto:qR(c)});});
       (c.abonos||[]).forEach(a=>{if(a.fecha===fh)ph.push({nombre:c.nombre,tipo:"Abono",monto:a.monto});});
