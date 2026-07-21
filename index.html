@@ -103,7 +103,8 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       catch(e){}
       const rg=await gSt(SK+"_gan");
       if(rg){try{const p=typeof rg==="string"?JSON.parse(rg):rg;if(Array.isArray(p)&&p.length>=0)setGanHist(p);}catch(e){}}
-      if(rch){try{setCapHist(typeof rch==="string"?JSON.parse(rch):rch);}catch(e){setCapHist(0);}}
+      if(rg){try{const p=typeof rg==="string"?JSON.parse(rg):rg;if(Array.isArray(p)&&p.length>=0)setGanHist(p);}catch(e){}}
+      const rch=await gSt(SK+"_caphist");
       const rcm=await gSt(SK+"_cierres_mes");
       const cierresIni=rcm?JSON.parse(rcm):[];
       setCierresMes(cierresIni);
