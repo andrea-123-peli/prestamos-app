@@ -638,12 +638,12 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                     {c.abonos.map((a,i)=>(
                     {c.abonos.map((a,idx)=>(
                       <div key={idx} style={{display:"grid",gridTemplateColumns:"1fr 1fr 2fr auto",padding:"7px 11px",borderBottom:"1px solid #0f172a",alignItems:"center"}}>
-                        <span style={{fontSize:10,color:"#64748b"}}>{a.fecha}</span>
                         <span style={{fontSize:11,fontWeight:700,color:"#3b82f6"}}>{fC(a.monto)}</span>
                         <span style={{fontSize:10,color:"#475569"}}>{a.nota||""}</span>
-                        <button onClick={()=>{const u=cl.map(x=>{if(x.id!==c.id)return x;const abs=x.abonos.filter((_,j)=>j!==idx);const totalAb=abs.reduce((s,a)=>s+a.monto,0);const nq=Math.min(x.cuotas,(x.cuotasPorBoton||0)+Math.floor(totalAb/(qR(x)||1)));return{...x,abonos:abs,cuotasPagadas:nq,estado:nq>=x.cuotas?"pagado":"activo"};});save(u);if(det&&det.id===c.id)setDet(u.find(x=>x.id===c.id));showT("Abono eliminado");}} style={{background:"#450a0a",color:"#ef4444",border:"none",borderRadius:5,padding:"2px 6px",fontSize:10,cursor:"pointer",fontWeight:700}}>✕</button>
                       </div>
-                    ))}
+                        <button onClick={()=>{const u=cl.map(x=>{if(x.id!==c.id)return x;const abs=x.abonos.filter((_,j)=>j!==idx);const totalAb=abs.reduce((s,ab)=>s+ab.monto,0);const nq=Math.min(x.cuotas,(x.cuotasPorBoton||0)+Math.floor(totalAb/(qR(x)||1)));return{...x,abonos:abs,cuotasPagadas:Math.max(x.cuotasPorBoton||0,nq),estado:nq>=x.cuotas?"pagado":"activo"};});save(u);if(det&&det.id===c.id)setDet(u.find(x=>x.id===c.id));showT("Abono eliminado");}} style={{background:"#450a0a",color:"#ef4444",border:"none",borderRadius:5,padding:"2px 6px",fontSize:10,cursor:"pointer",fontWeight:700}}>✕</button>
+                      </div>
+                  </div>
                 </div>
               )}
               {(()=>{
