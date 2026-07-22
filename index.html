@@ -636,11 +636,12 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                   <h3 style={{fontSize:12,fontWeight:700,color:"#f1f5f9",marginBottom:7}}>Abonos</h3>
                   <div style={{background:"#1e293b",borderRadius:10,overflow:"hidden",border:"1px solid #334155"}}>
                     {c.abonos.map((a,i)=>(
-                      <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 1fr 2fr",padding:"7px 11px",borderBottom:i<c.abonos.length-1?"1px solid #0f172a":"none"}}>
-                        <span style={{fontSize:10,color:"#64748b"}}>{a.fecha}</span>
+                    {c.abonos.map((a,idx)=>(
+                      <div key={idx} style={{display:"grid",gridTemplateColumns:"1fr 1fr 2fr auto",padding:"7px 11px",borderBottom:"1px solid #0f172a",alignItems:"center"}}>
                         <span style={{fontSize:11,fontWeight:700,color:"#3b82f6"}}>{fC(a.monto)}</span>
                         <span style={{fontSize:10,color:"#475569"}}>{a.nota||""}</span>
-                      </div>
+                        <span style={{fontSize:10,color:"#475569"}}>{a.nota||""}</span>
+                        <button onClick={()=>{const u=cl.map(x=>{if(x.id!==c.id)return x;const abs=x.abonos.filter((_,j)=>j!==idx);const totalAb=abs.reduce((s,a)=>s+a.monto,0);const nq=Math.min(x.cuotas,(x.cuotasPorBoton||0)+Math.floor(totalAb/(qR(x)||1)));return{...x,abonos:abs,cuotasPagadas:nq,estado:nq>=x.cuotas?"pagado":"activo"};});save(u);if(det&&det.id===c.id)setDet(u.find(x=>x.id===c.id));showT("Abono eliminado");}} style={{background:"#450a0a",color:"#ef4444",border:"none",borderRadius:5,padding:"2px 6px",fontSize:10,cursor:"pointer",fontWeight:700}}>✕</button>
                     ))}
                   </div>
                 </div>
