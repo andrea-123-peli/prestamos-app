@@ -194,10 +194,6 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       mg-=capitalPerdido(c);
     });
     const fh=hoy();const ph=[];
-    // Include clients renovated today
-    cl.forEach(c=>{
-      if(c.ultimoPago===fh&&c.estado==="activo")ph.push({nombre:c.nombre,tipo:"Renovado",monto:qR(c)});
-    });
     cl.forEach(c=>{
       (c.historialPagos||[]).forEach((f,i)=>{if(f===fh)ph.push({nombre:c.nombre,tipo:"Cuota "+(i+1),monto:qR(c)});});
       (c.abonos||[]).forEach(a=>{if(a.fecha===fh)ph.push({nombre:c.nombre,tipo:"Abono",monto:a.monto});});
