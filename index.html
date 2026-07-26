@@ -532,6 +532,26 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                 </div>
               </div>}
             </div>
+            <div style={{background:"#1e293b",borderRadius:11,padding:"12px 14px",border:"1px solid #334155",marginTop:10}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+                <span>💸</span>
+                <span style={{fontSize:12,fontWeight:700,color:"#f1f5f9"}}>Prestados hoy</span>
+              </div>
+              {(()=>{
+                const fh=hoy();
+                const prestadosHoy=cl.filter(c=>c.fechaInicio===fh||(c.fechaRenovacion===fh));
+                if(prestadosHoy.length===0)return <div style={{fontSize:11,color:"#475569"}}>Sin préstamos hoy.</div>;
+                return prestadosHoy.map((c,i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:i<prestadosHoy.length-1?"1px solid #0f172a":"none"}}>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:700,color:"#f1f5f9"}}>{c.nombre}</div>
+                      <div style={{fontSize:10,color:"#64748b"}}>{c.fechaRenovacion===fh?"Renovado":"Nuevo"} · {fC(c.monto)}</div>
+                    </div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#f59e0b"}}>{fC(qR(c))} x {c.cuotas}</div>
+                  </div>
+                ));
+              })()}
+            </div>
           </div>
         )}
 
