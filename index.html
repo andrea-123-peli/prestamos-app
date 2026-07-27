@@ -202,7 +202,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     const hoyDia=diasSem[new Date().getDay()];
     const hoyDom=new Date().getDate();
     const cobroHoy=cl.filter(c=>{
-      if(!c.diaCobro||c.estado!=="activo")return false;
+      if(!c.diaCobro||c.estado!=="activo"||c.fechaInicio===fh||c.fechaRenovacion===fh)return false;
       if(c.frecuencia==="semanal"){
         if(c.diaCobro!==hoyDia)return false;
         const lun=new Date();lun.setDate(lun.getDate()-lun.getDay()+(lun.getDay()===0?-6:1));
