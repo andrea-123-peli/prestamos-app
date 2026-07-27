@@ -195,6 +195,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     });
     const fh=hoy();const ph=[];
     cl.forEach(c=>{
+      if(c.fechaInicio===fh&&c.cuotasPagadas===0)return;
       (c.historialPagos||[]).forEach((f,i)=>{if(f===fh)ph.push({nombre:c.nombre,tipo:"Cuota "+(i+1),monto:qR(c)});});
       (c.abonos||[]).forEach(a=>{if(a.fecha===fh)ph.push({nombre:c.nombre,tipo:"Abono",monto:a.monto});});
     });
