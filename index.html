@@ -206,12 +206,11 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       if(!c.diaCobro||c.estado!=="activo"||c.fechaInicio===fh||c.fechaRenovacion===fh)return false;
       if(c.frecuencia==="semanal"){
         if(c.diaCobro!==hoyDia)return false;
-        const lun=new Date();lun.setDate(lun.getDate()-lun.getDay()+(lun.getDay()===0?-6:1));
-        return !(c.historialPagos||[]).some(f=>f&&f>=lun.toISOString().split("T")[0]);
+        return !(c.historialPagos||[]).some(f=>f===fh);
       }
       if(c.frecuencia==="mensual"){
         if(String(hoyDom)!==String(c.diaCobro))return false;
-        return !(c.historialPagos||[]).some(f=>f&&f.startsWith(mlb));
+        return !(c.historialPagos||[]).some(f=>f===fh);
       }
       if(c.frecuencia==="quincenal"){
         const dia=parseInt(c.diaCobro)||15;
