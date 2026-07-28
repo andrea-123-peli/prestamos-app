@@ -224,7 +224,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     return{...st,gan:ganTotal,neta:ganFinal,capMes,capCalleNeto:Math.round(capCalleNeto),mesMonto:Math.round(mg),mesAnterior:Math.round(ganHist.filter(g=>{const ma=new Date();ma.setMonth(ma.getMonth()-1);const mlbA=ma.getFullYear()+"-"+String(ma.getMonth()+1).padStart(2,"0");return g.fecha&&g.fecha.startsWith(mlbA);}).reduce((s,g)=>s+g.ganancia,0)),ganAprox:Math.round(ganAprox),ph,cobroHoy,pag:cl.filter(c=>c.estado==="pagado").length,perN:cl.filter(c=>c.estado==="perdida").length};
   },[cl,ganHist,capHist]);
 
-  const filt=useMemo(()=>cl.filter(c=>(fil==="todos"||c.estado===fil)&&c.nombre.toLowerCase().includes(busq.toLowerCase())).slice().reverse(),[cl,fil,busq]);
+  const filt=useMemo(()=>cl.filter(c=>(fil==="todos"||c.estado===fil)&&c.nombre.toLowerCase().includes(busq.toLowerCase().trim())).slice().reverse(),[cl,fil,busq]);
 
   const hD=useMemo(()=>{
     const [dA,dM]=hFil.desde.split("-").map(Number);
@@ -586,7 +586,17 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                       </div>
                       <select value={c.estado} onChange={e=>{
                         const nuevoEst=e.target.value;
-                        const u=cl.map(x=>{if(x.id!==c.id)return x;const ep=nuevoEst==="perdida"&&x.estado!=="perdida";return{...x,estado:nuevoEst,fechaPerdida:ep?hoy():(x.fechaPerdida||null)};});
+                        const u=cl.map(x=>{if(x.id!==c.id)return x;const ep=nuevoEst==="perdida"&&x.estado!=="perdida";
+                if(ep){
+                  // Save any interest already paid to ganHist
+                  const totalPagado=(x.cuotasPagadas*(x.monto/x.cuotas))+(x.abonos||[]).reduce((s,a)=>s+a.monto,0);
+                  const intPagado=Math.max(0,totalPagado-x.monto);
+                  if(intPagado>0){
+                    const ng=[...ganHist,{id:x.id+"_perd_"+hoy(),clienteId:x.id,ganancia:intPagado,fecha:x.fechaInicio||hoy()}];
+                    setGanHist(ng);sSt(SK+"_gan",JSON.stringify(ng));
+                  }
+                }
+                return{...x,estado:nuevoEst,fechaPerdida:ep?hoy():(x.fechaPerdida||null)};});
                         save(u);showT("Estado actualizado - "+c.nombre);
                       }} style={{padding:"2px 8px",borderRadius:20,background:col.bg,color:col.text,fontSize:10,fontWeight:700,border:"none",cursor:"pointer",outline:"none",appearance:"none",WebkitAppearance:"none"}}>
                         {EST.map(e=><option key={e} value={e}>{e.toUpperCase()}</option>)}
