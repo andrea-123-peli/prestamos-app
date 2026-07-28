@@ -135,7 +135,8 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       if(c.estado==="perdida"&&c.fechaInicio&&c.fechaInicio.startsWith(labelMes))p+=cS(c);
       if(c.estado==="atrasado"){atr+=cS(c);nAtr++;}
     });
-    const cierre={label:labelMes,g:Math.round(g),p:Math.round(p),n:Math.round(g-p),pr:Math.round(pr),atr:Math.round(atr),nAtr,fechaCierre:hoyStr};
+    const est=clientes.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{const q=Math.round((c.monto+c.monto*(c.tasa||20)/100)/c.cuotas)||0;return s+q*c.cuotas-c.monto;},0);
+    const cierre={label:labelMes,g:Math.round(g),p:Math.round(p),n:Math.round(g-p),pr:Math.round(pr),atr:Math.round(atr),nAtr,est:Math.round(est),fechaCierre:hoyStr};
     const nuevos=[...cierresActuales,cierre];
     setCierresMes(nuevos);
     sSt(SK+"_cierres_mes",JSON.stringify(nuevos));
@@ -786,6 +787,10 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                         <span style={{fontSize:9,color:"#64748b"}}>Rendimiento</span>
                         <span style={{fontSize:10,fontWeight:700,color:"#a78bfa"}}>{d.rend||"0.0"}%</span>
                       </div>
+                      {d.est>0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:2}}>
+                        <span style={{fontSize:9,color:"#64748b"}}>Estimado era</span>
+                        <span style={{fontSize:10,fontWeight:700,color:"#f59e0b"}}>{fC(d.est)}</span>
+                      </div>}
                     </div>
                   </div>
                 );
