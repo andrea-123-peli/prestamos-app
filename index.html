@@ -179,7 +179,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     // Prestado este mes = monto actual si inicio/renovacion este mes
     // + montos de renovaciones anteriores que ocurrieron este mes
     const capMes=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0);
-    const ganAprox=cl.filter(c=>(c.estado==="activo"||c.estado==="atrasado")&&c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0);
+    const ganAprox=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0);
     // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
     const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{
       const capPorCuota=c.monto/c.cuotas;
@@ -728,7 +728,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     // Prestado este mes = monto actual si inicio/renovacion este mes
     // + montos de renovaciones anteriores que ocurrieron este mes
     const capMes=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0);
-    const ganAprox=cl.filter(c=>(c.estado==="activo"||c.estado==="atrasado")&&c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0);
+    const ganAprox=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0);
     // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
     const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{
       const capPorCuota=c.monto/c.cuotas;
