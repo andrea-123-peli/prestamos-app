@@ -222,7 +222,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       if(c.frecuencia==="diario")return !(c.historialPagos||[]).some(f=>f===fh);
       return false;
     });
-    return{...st,gan:ganTotal,neta:ganFinal,capMes,capCalleNeto:Math.round(capCalleNeto),mesMonto:Math.round(mg),mesAnterior:Math.round(ganHist.filter(g=>{const ma=new Date();ma.setMonth(ma.getMonth()-1);const mlbA=ma.getFullYear()+"-"+String(ma.getMonth()+1).padStart(2,"0");return g.fecha&&g.fecha.startsWith(mlbA);}).reduce((s,g)=>s+g.ganancia,0)),ganAprox:Math.round(ganAprox),ph,cobroHoy,pag:cl.filter(c=>c.estado==="pagado").length,perN:cl.filter(c=>c.estado==="perdida").length};
+    return{...st,gan:ganTotal,neta:ganFinal,capMes,capCalleNeto:Math.round(capCalleNeto),mesMonto:Math.round(mg),mesAnterior:Math.round(ganHist.filter(g=>{const ma=new Date();ma.setDate(1);ma.setMonth(ma.getMonth()-1);const mlbA=ma.getFullYear()+"-"+String(ma.getMonth()+1).padStart(2,"0");return g.fecha&&g.fecha.startsWith(mlbA);}).reduce((s,g)=>s+g.ganancia,0)),ganAprox:Math.round(ganAprox),ph,cobroHoy,pag:cl.filter(c=>c.estado==="pagado").length,perN:cl.filter(c=>c.estado==="perdida").length};
   },[cl,ganHist,capHist]);
 
   const filt=useMemo(()=>cl.filter(c=>(fil==="todos"||c.estado===fil)&&c.nombre.toLowerCase().includes(busq.toLowerCase().trim())).slice().reverse(),[cl,fil,busq]);
