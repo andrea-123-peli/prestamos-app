@@ -76,6 +76,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
   const [ganHist,setGanHist]=useState([]);
   const [capHist,setCapHist]=useState(0);
   const [cierresMes,setCierresMes]=useState([]);
+  const [estMes,setEstMes]=useState({});
   const [showPagoFinal,setShowPagoFinal]=useState(false);
   const [pagoFinalId,setPagoFinalId]=useState(null);
   const [descuento,setDescuento]=useState("");
@@ -115,6 +116,23 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       setLoading(false);
     })();
   },[]);
+
+  // Guardar estimado del mes una sola vez - nunca se modifica
+  useEffect(()=>{
+    if(loading||cl.length===0)return;
+    const mn=new Date();
+    const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
+    const estKey="mp_c_"+CK+"_est_"+mlb;
+    gSt(estKey).then(val=>{
+      if(val===null||val===undefined||val==="null"){
+        // No guardado aun - calcularlo y guardarlo para siempre
+        const est=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0);
+        if(est>0){sSt(estKey,JSON.stringify(Math.round(est)));setEstMes(p=>({...p,[mlb]:Math.round(est)}));}
+      } else {
+        setEstMes(p=>({...p,[mlb]:parseInt(val)||0}));
+      }
+    });
+  },[loading,cl]);
 
   function showT(msg){setToast(msg);setTimeout(()=>setToast(null),2500);}
 
@@ -793,7 +811,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                       </div>}
                       {<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:2}}>
                         <span style={{fontSize:9,color:"#64748b"}}>Estimado</span>
-                        <span style={{fontSize:10,fontWeight:700,color:"#f59e0b"}}>{d.est>0?fC(d.est):fC(cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(d.label)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0))}</span>
+                        <span style={{fontSize:10,fontWeight:700,color:"#f59e0b"}}>{fC(d.est||estMes[d.label]||cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(d.label)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0))}</span>
                       </div>}
                     </div>
                   </div>
@@ -889,7 +907,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                             </div>
                             <div>
                               <div style={{fontSize:9,color:"#64748b"}}>Estimado</div>
-                              <div style={{fontSize:11,fontWeight:700,color:"#a78bfa"}}>{d.est>0?fC(d.est):fC(cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(d.label)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0))}</div>
+                              <div style={{fontSize:11,fontWeight:700,color:"#a78bfa"}}>{fC(d.est||estMes[d.label]||cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(d.label)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0))}</div>
                             </div>
                             <div style={{textAlign:"right"}}>
                               <div style={{fontSize:9,color:"#64748b"}}>Neto</div>
@@ -1260,6 +1278,23 @@ function App(){
       setLoading(false);
     })();
   },[]);
+
+  // Guardar estimado del mes una sola vez - nunca se modifica
+  useEffect(()=>{
+    if(loading||cl.length===0)return;
+    const mn=new Date();
+    const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
+    const estKey="mp_c_"+CK+"_est_"+mlb;
+    gSt(estKey).then(val=>{
+      if(val===null||val===undefined||val==="null"){
+        // No guardado aun - calcularlo y guardarlo para siempre
+        const est=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0);
+        if(est>0){sSt(estKey,JSON.stringify(Math.round(est)));setEstMes(p=>({...p,[mlb]:Math.round(est)}));}
+      } else {
+        setEstMes(p=>({...p,[mlb]:parseInt(val)||0}));
+      }
+    });
+  },[loading,cl]);
 
   async function saveTrab(u){setTrab(u);sSt("mp_trab_v1",JSON.stringify(u));}
 
