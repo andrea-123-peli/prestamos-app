@@ -126,9 +126,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       if(!val||val==="null"){
         const est=Math.round(cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0));
         if(est>0){sSt(estKey,JSON.stringify(est));setEstMes(p=>({...p,[mlb]:est}));}
-      } else {
-        setEstMes(p=>({...p,[mlb]:parseInt(val)||0}));
-      }
+      } else {setEstMes(p=>({...p,[mlb]:parseInt(val)||0}));}
     });
   },[loading,cl]);
 
@@ -1276,21 +1274,6 @@ function App(){
       setLoading(false);
     })();
   },[]);
-
-  useEffect(()=>{
-    if(loading||cl.length===0)return;
-    const mn=new Date();
-    const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
-    const estKey="mp_c_"+CK+"_est_"+mlb;
-    gSt(estKey).then(val=>{
-      if(!val||val==="null"){
-        const est=Math.round(cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0));
-        if(est>0){sSt(estKey,JSON.stringify(est));setEstMes(p=>({...p,[mlb]:est}));}
-      } else {
-        setEstMes(p=>({...p,[mlb]:parseInt(val)||0}));
-      }
-    });
-  },[loading,cl]);
 
   async function saveTrab(u){setTrab(u);sSt("mp_trab_v1",JSON.stringify(u));}
 
