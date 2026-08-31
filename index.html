@@ -114,6 +114,14 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       cerrarMesAutomatico(clIni,cierresIni);
       const rci=await gSt(CK);if(rci)setCi(JSON.parse(rci));
       setLoading(false);
+      // Load all saved estimados
+      const mnL=new Date();
+      for(let i=0;i<6;i++){
+        const d=new Date(mnL.getFullYear(),mnL.getMonth()-i,1);
+        const lbl=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+        const v=await gSt("mp_c_"+CK+"_est_"+lbl);
+        if(v&&v!=="null")setEstMes(p=>({...p,[lbl]:parseInt(v)||0}));
+      }
     })();
   },[]);
 
@@ -121,13 +129,11 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     if(loading||cl.length===0)return;
     const mn=new Date();
     const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
-    const estKey="mp_c_"+CK+"_est_"+mlb;
-    gSt(estKey).then(val=>{
-      if(!val||val==="null"){
-        const est=Math.round(cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0));
-        if(est>0){sSt(estKey,JSON.stringify(est));setEstMes(p=>({...p,[mlb]:est}));}
-      } else {setEstMes(p=>({...p,[mlb]:parseInt(val)||0}));}
-    });
+    const est=Math.round(cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0));
+    if(est>0){
+      sSt("mp_c_"+CK+"_est_"+mlb,JSON.stringify(est));
+      setEstMes(p=>({...p,[mlb]:est}));
+    }
   },[loading,cl]);
 
   function showT(msg){setToast(msg);setTimeout(()=>setToast(null),2500);}
@@ -193,7 +199,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     // Prestado este mes = monto actual si inicio/renovacion este mes
     // + montos de renovaciones anteriores que ocurrieron este mes
     const capMes=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0);
-    const ganAprox=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0);
+    const ganAprox=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0);
     // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
     const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{
       const capPorCuota=c.monto/c.cuotas;
@@ -347,6 +353,14 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
   function regRen(id){
     const m=pN(renF.monto),t=Number(renF.tasa),q=Number(renF.cuotas);if(!m||!t||!q)return;
     const c0=cl.find(x=>x.id===id);if(!c0)return;
+    // Guardar ganancia del prestamo anterior si no estaba ya guardada
+    const yaEnGanHist=ganHist.some(g=>g.clienteId===c0.id&&g.fecha===(c0.fechaInicio||hoy()));
+    if(!yaEnGanHist&&c0.estado==="pagado"){
+      const gan=Math.max(0,qR(c0)*c0.cuotas-c0.monto-(c0.descuento||0));
+      const nuevaGan=[...ganHist,{id:c0.id+"_ren_"+hoy(),clienteId:c0.id,nombre:c0.nombre,ganancia:gan,fecha:c0.fechaInicio||hoy()}];
+      setGanHist(nuevaGan);
+      sSt(SK+"_gan",JSON.stringify(nuevaGan));
+    }
     // Save old monto to capital historico
     const nuevoCap=capHist+c0.monto;
     setCapHist(nuevoCap);
@@ -742,7 +756,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     // Prestado este mes = monto actual si inicio/renovacion este mes
     // + montos de renovaciones anteriores que ocurrieron este mes
     const capMes=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0);
-    const ganAprox=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0);
+    const ganAprox=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0);
     // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
     const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{
       const capPorCuota=c.monto/c.cuotas;
@@ -807,7 +821,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                       </div>}
                       {<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:2}}>
                         <span style={{fontSize:9,color:"#64748b"}}>Estimado</span>
-                        <span style={{fontSize:10,fontWeight:700,color:"#f59e0b"}}>{fC(d.est||estMes[d.label]||cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(d.label)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0))}</span>
+                        <span style={{fontSize:10,fontWeight:700,color:"#f59e0b"}}>{fC(d.est||cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(d.label)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0))}</span>
                       </div>}
                     </div>
                   </div>
@@ -903,7 +917,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                             </div>
                             <div>
                               <div style={{fontSize:9,color:"#64748b"}}>Estimado</div>
-                              <div style={{fontSize:11,fontWeight:700,color:"#a78bfa"}}>{fC(d.est||estMes[d.label]||cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(d.label)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0))}</div>
+                              <div style={{fontSize:11,fontWeight:700,color:"#a78bfa"}}>{fC(d.est||cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(d.label)).reduce((s,c)=>s+(qR(c)*c.cuotas-c.monto),0))}</div>
                             </div>
                             <div style={{textAlign:"right"}}>
                               <div style={{fontSize:9,color:"#64748b"}}>Neto</div>
@@ -1272,6 +1286,14 @@ function App(){
       try{const r=await gSt("mp_trab_v1");if(r)setTrab(JSON.parse(r));}catch(e){}
       try{const r=await gSt("mp_opin_v1");if(r)setOPin(JSON.parse(r));}catch(e){}
       setLoading(false);
+      // Load all saved estimados
+      const mnL=new Date();
+      for(let i=0;i<6;i++){
+        const d=new Date(mnL.getFullYear(),mnL.getMonth()-i,1);
+        const lbl=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+        const v=await gSt("mp_c_"+CK+"_est_"+lbl);
+        if(v&&v!=="null")setEstMes(p=>({...p,[lbl]:parseInt(v)||0}));
+      }
     })();
   },[]);
 
