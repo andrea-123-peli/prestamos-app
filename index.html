@@ -833,6 +833,10 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                         <span style={{fontSize:9,color:"#64748b"}}>Estimado</span>
                         <span style={{fontSize:10,fontWeight:700,color:"#f59e0b"}}>{fC(d.est||estMes[d.label]||cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(d.label)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0))}</span>
                       </div>}
+                      {(()=>{const est2=d.est||estMes[d.label]||0;const pc=Math.max(0,est2-d.g-d.p);return est2>0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:2}}>
+                        <span style={{fontSize:9,color:"#64748b"}}>Por cobrar</span>
+                        <span style={{fontSize:10,fontWeight:700,color:"#22d3ee"}}>{fC(pc)}</span>
+                      </div>;})()}
                     </div>
                   </div>
                 );
@@ -911,7 +915,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                         const mes=parseInt(d.label.split("-")[1]);
                         const color=d.n>0?"#10b981":d.n<0?"#ef4444":"#64748b";
                         return(
-                          <div key={i} style={{display:"grid",gridTemplateColumns:"70px 1fr 1fr 1fr 1fr 1fr",padding:"10px 14px",borderBottom:i<meses.length-1?"1px solid #0f172a":"none",background:i%2===0?"#1e293b":"#162032",alignItems:"center"}}>
+                          <div key={i} style={{display:"grid",gridTemplateColumns:"70px 1fr 1fr 1fr 1fr 1fr 1fr",padding:"10px 14px",borderBottom:i<meses.length-1?"1px solid #0f172a":"none",background:i%2===0?"#1e293b":"#162032",alignItems:"center"}}>
                             <div style={{fontSize:12,fontWeight:700,color:"#f1f5f9"}}>{nomMes[mes-1]}</div>
                             <div>
                               <div style={{fontSize:9,color:"#64748b"}}>Prestado</div>
@@ -929,6 +933,10 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                               <div style={{fontSize:9,color:"#64748b"}}>Estimado</div>
                               <div style={{fontSize:11,fontWeight:700,color:"#a78bfa"}}>{fC(d.est||estMes[d.label]||cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(d.label)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0))}</div>
                             </div>
+                            <div>
+                              <div style={{fontSize:9,color:"#64748b"}}>Por cobrar</div>
+                              <div style={{fontSize:11,fontWeight:700,color:"#22d3ee"}}>{fC(Math.max(0,(d.est||estMes[d.label]||0)-d.g-d.p))}</div>
+                            </div>
                             <div style={{textAlign:"right"}}>
                               <div style={{fontSize:9,color:"#64748b"}}>Neto</div>
                               <div style={{fontSize:12,fontWeight:800,color:color}}>{fC(d.n)}</div>
@@ -936,7 +944,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                           </div>
                         );
                       })}
-                      <div style={{display:"grid",gridTemplateColumns:"70px 1fr 1fr 1fr 1fr 1fr",padding:"10px 14px",background:"#0f172a",borderTop:"2px solid #334155",alignItems:"center"}}>
+                      <div style={{display:"grid",gridTemplateColumns:"70px 1fr 1fr 1fr 1fr 1fr 1fr",padding:"10px 14px",background:"#0f172a",borderTop:"2px solid #334155",alignItems:"center"}}>
                         <div style={{fontSize:11,fontWeight:700,color:"#94a3b8"}}>TOTAL {anio}</div>
                         <div><div style={{fontSize:11,fontWeight:800,color:"#3b82f6"}}>{fC(meses.reduce((s,d)=>s+d.pr,0))}</div></div>
                         <div><div style={{fontSize:11,fontWeight:800,color:"#f59e0b"}}>{fC(tg)}</div></div>
