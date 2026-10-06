@@ -257,7 +257,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
         const label=y+"-"+String(m).padStart(2,"0");
         // Usar cierre guardado si existe (datos fijos que no cambian)
         const cierreG=cierresMes.find(x=>x.label===label);
-        let g=0,p=0,pr=cierreG?cierreG.pr:0;
+        let g=0,p=0,pr=cierreG?(cierreG.pr+(borradosHist[label]?borradosHist[label].monto:0)):0;
         let atr=0,nAtr=0;
         cl.forEach(c=>{
           if(!cierreG&&c.fechaInicio&&c.fechaInicio.startsWith(label))pr+=c.monto;
@@ -270,7 +270,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
         // Ganancia del mes desde ganHist por fechaInicio
         ganHist.filter(gh=>gh.fecha&&gh.fecha.startsWith(label)).forEach(gh=>{g+=gh.ganancia;});
         const rend=pr>0?((g/pr)*100).toFixed(1):"0.0";
-        const estVal=cierreG?cierreG.est:(estMes[label]||0);
+        const estBase=cierreG?cierreG.est:(estMes[label]||0);const estVal=estBase+(borradosHist[label]?borradosHist[label].intereses:0);
         ms.push({label,g:Math.round(g),p:Math.round(p),n:Math.round(g-p),pr:Math.round(pr),atr:Math.round(atr),nAtr,rend,est:estVal});
         m++;
       }y++;
