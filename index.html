@@ -388,13 +388,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
   function elim(id){
     const c0=cl.find(x=>x.id===id);
     if(c0&&c0.estado==="pagado"){
-      // Ganancia ya fue guardada al pagar - no duplicar en ganHist
-      // Sumar al capital historico
-      const capCliente=c0.monto+(c0.renovaciones||[]).reduce((a,r)=>a+(r.montoAnterior||0),0);
-      const nuevoCap=capHist+capCliente;
-      setCapHist(nuevoCap);
-      sSt(SK+"_caphist",JSON.stringify(nuevoCap));
-      // Guardar monto e intereses por mes para que no desaparezcan del estimado/prestado
+      // Al borrar cliente pagado: no tocar nada, solo preservar sus datos en borradosHist
       const mesC=c0.fechaInicio?c0.fechaInicio.substring(0,7):hoy().substring(0,7);
       const intC=Math.max(0,qR(c0)*c0.cuotas-c0.monto);
       const nuevoBH={...borradosHist};
