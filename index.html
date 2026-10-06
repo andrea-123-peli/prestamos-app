@@ -75,6 +75,8 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
   const [resetTxt,setResetTxt]=useState("");
   const [ganHist,setGanHist]=useState([]);
   const [capHist,setCapHist]=useState(0);
+  const [borradosHist,setBorradosHist]=useState({});
+  const [presMes,setPresMes]=useState({});
   const [cierresMes,setCierresMes]=useState([]);
   const [estMes,setEstMes]=useState({});
   const [showPagoFinal,setShowPagoFinal]=useState(false);
@@ -113,6 +115,8 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       const clIni=rc?JSON.parse(rc):[];
       cerrarMesAutomatico(clIni,cierresIni);
       const rci=await gSt(CK);if(rci)setCi(JSON.parse(rci));
+      const rbh=await gSt(SK+"_borrados_hist");if(rbh){try{setBorradosHist(typeof rbh==="string"?JSON.parse(rbh):rbh);}catch(e){}}
+      const rpm=await gSt(SK+"_pres_mes");if(rpm){try{setPresMes(typeof rpm==="string"?JSON.parse(rpm):rpm);}catch(e){}}
       setLoading(false);
     })();
   },[]);
@@ -121,9 +125,15 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     if(loading||cl.length===0)return;
     const mn=new Date();
     const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
+    // Estimado - nunca bajar
     const estKey="mp_c_"+CK+"_est_"+mlb;
-    const est=Math.round(cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0));
-    if(est>0){sSt(estKey,JSON.stringify(est));setEstMes(p=>({...p,[mlb]:est}));}
+    const est=Math.round(cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0)+(borradosHist[mlb]?borradosHist[mlb].intereses:0));
+    const actualEst=estMes[mlb]||0;
+    if(est>actualEst){sSt(estKey,JSON.stringify(est));setEstMes(p=>({...p,[mlb]:est}));}
+    // Prestado - nunca bajar
+    const pres=Math.round(cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0)+(borradosHist[mlb]?borradosHist[mlb].monto:0));
+    const actualPres=presMes[mlb]||0;
+    if(pres>actualPres){sSt(SK+"_pres_mes",JSON.stringify({...presMes,[mlb]:pres}));setPresMes(p=>({...p,[mlb]:pres}));}
   },[loading,cl]);
 
   function showT(msg){setToast(msg);setTimeout(()=>setToast(null),2500);}
@@ -188,8 +198,8 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     const mn=new Date();const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
     // Prestado este mes = monto actual si inicio/renovacion este mes
     // + montos de renovaciones anteriores que ocurrieron este mes
-    const capMes=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0);
-    const ganAprox=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0);
+    const capMes=presMes[mlb]||cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0)+(borradosHist[mlb]?borradosHist[mlb].monto:0);
+    const ganAprox=estMes[mlb]||cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0)+(borradosHist[mlb]?borradosHist[mlb].intereses:0);
     // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
     const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{
       const capPorCuota=c.monto/c.cuotas;
@@ -245,23 +255,28 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       let m=(y===dA?dM:1);const mEnd=(y===hA?hM:12);
       while(m<=mEnd){
         const label=y+"-"+String(m).padStart(2,"0");
-        let g=0,p=0,pr=0;
+        // Usar cierre guardado si existe (datos fijos que no cambian)
+        const cierreG=cierresMes.find(x=>x.label===label);
+        let g=0,p=0,pr=cierreG?(cierreG.pr+(borradosHist[label]?borradosHist[label].monto:0)):0;
         let atr=0,nAtr=0;
         cl.forEach(c=>{
-          if(c.fechaInicio&&c.fechaInicio.startsWith(label))pr+=c.monto;
+          if(!cierreG&&c.fechaInicio&&c.fechaInicio.startsWith(label))pr+=c.monto;
           // ganancia via ganHist por fechaInicio
           if(c.estado==="perdida"&&c.fechaInicio&&c.fechaInicio.startsWith(label))p+=capitalPerdido(c);
           if(c.estado==="atrasado"){atr+=cS(c);nAtr++;}
         });
+        // Sumar borradosHist al prestado si no hay cierre
+        if(!cierreG&&borradosHist[label])pr+=borradosHist[label].monto;
         // Ganancia del mes desde ganHist por fechaInicio
         ganHist.filter(gh=>gh.fecha&&gh.fecha.startsWith(label)).forEach(gh=>{g+=gh.ganancia;});
         const rend=pr>0?((g/pr)*100).toFixed(1):"0.0";
-        ms.push({label,g:Math.round(g),p:Math.round(p),n:Math.round(g-p),pr:Math.round(pr),atr:Math.round(atr),nAtr,rend});
+        const estBase=cierreG?cierreG.est:(estMes[label]||0);const estVal=estBase+(borradosHist[label]?borradosHist[label].intereses:0);
+        ms.push({label,g:Math.round(g),p:Math.round(p),n:Math.round(g-p),pr:Math.round(pr),atr:Math.round(atr),nAtr,rend,est:estVal});
         m++;
       }y++;
     }
     return ms;
-  },[cl,hFil]);
+  },[cl,hFil,ganHist,cierresMes,borradosHist,estMes]);
 
   function guardar(){
     const m=pN(form.monto),t=Number(form.tasa),q=Number(form.cuotas);
@@ -372,7 +387,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
 
   function elim(id){
     const c0=cl.find(x=>x.id===id);
-    // Cliente pagado: no tocar nada al borrar, ya todo quedó registrado al pagar
+    // Al borrar cliente pagado: solo quitarlo de la lista, nada más
     save(cl.filter(c=>c.id!==id));
     if(det&&det.id===id)setDet(null);
   }
@@ -734,8 +749,8 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
               const mn=new Date();const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
     // Prestado este mes = monto actual si inicio/renovacion este mes
     // + montos de renovaciones anteriores que ocurrieron este mes
-    const capMes=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0);
-    const ganAprox=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0);
+    const capMes=presMes[mlb]||cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0)+(borradosHist[mlb]?borradosHist[mlb].monto:0);
+    const ganAprox=estMes[mlb]||cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0)+(borradosHist[mlb]?borradosHist[mlb].intereses:0);
     // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
     const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{
       const capPorCuota=c.monto/c.cuotas;
@@ -802,6 +817,10 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                         <span style={{fontSize:9,color:"#64748b"}}>Estimado</span>
                         <span style={{fontSize:10,fontWeight:700,color:"#f59e0b"}}>{fC(d.est||estMes[d.label]||cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(d.label)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0))}</span>
                       </div>}
+                      {(()=>{const est2=d.est||estMes[d.label]||0;const pc=Math.max(0,est2-d.g-d.p);return est2>0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:2}}>
+                        <span style={{fontSize:9,color:"#64748b"}}>Por cobrar</span>
+                        <span style={{fontSize:10,fontWeight:700,color:"#22d3ee"}}>{fC(pc)}</span>
+                      </div>;})()}
                     </div>
                   </div>
                 );
@@ -880,7 +899,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                         const mes=parseInt(d.label.split("-")[1]);
                         const color=d.n>0?"#10b981":d.n<0?"#ef4444":"#64748b";
                         return(
-                          <div key={i} style={{display:"grid",gridTemplateColumns:"70px 1fr 1fr 1fr 1fr 1fr",padding:"10px 14px",borderBottom:i<meses.length-1?"1px solid #0f172a":"none",background:i%2===0?"#1e293b":"#162032",alignItems:"center"}}>
+                          <div key={i} style={{display:"grid",gridTemplateColumns:"70px 1fr 1fr 1fr 1fr 1fr 1fr",padding:"10px 14px",borderBottom:i<meses.length-1?"1px solid #0f172a":"none",background:i%2===0?"#1e293b":"#162032",alignItems:"center"}}>
                             <div style={{fontSize:12,fontWeight:700,color:"#f1f5f9"}}>{nomMes[mes-1]}</div>
                             <div>
                               <div style={{fontSize:9,color:"#64748b"}}>Prestado</div>
@@ -898,6 +917,10 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                               <div style={{fontSize:9,color:"#64748b"}}>Estimado</div>
                               <div style={{fontSize:11,fontWeight:700,color:"#a78bfa"}}>{fC(d.est||estMes[d.label]||cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(d.label)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0))}</div>
                             </div>
+                            <div>
+                              <div style={{fontSize:9,color:"#64748b"}}>Por cobrar</div>
+                              <div style={{fontSize:11,fontWeight:700,color:"#22d3ee"}}>{fC(Math.max(0,(d.est||estMes[d.label]||0)-d.g-d.p))}</div>
+                            </div>
                             <div style={{textAlign:"right"}}>
                               <div style={{fontSize:9,color:"#64748b"}}>Neto</div>
                               <div style={{fontSize:12,fontWeight:800,color:color}}>{fC(d.n)}</div>
@@ -905,7 +928,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                           </div>
                         );
                       })}
-                      <div style={{display:"grid",gridTemplateColumns:"70px 1fr 1fr 1fr 1fr 1fr",padding:"10px 14px",background:"#0f172a",borderTop:"2px solid #334155",alignItems:"center"}}>
+                      <div style={{display:"grid",gridTemplateColumns:"70px 1fr 1fr 1fr 1fr 1fr 1fr",padding:"10px 14px",background:"#0f172a",borderTop:"2px solid #334155",alignItems:"center"}}>
                         <div style={{fontSize:11,fontWeight:700,color:"#94a3b8"}}>TOTAL {anio}</div>
                         <div><div style={{fontSize:11,fontWeight:800,color:"#3b82f6"}}>{fC(meses.reduce((s,d)=>s+d.pr,0))}</div></div>
                         <div><div style={{fontSize:11,fontWeight:800,color:"#f59e0b"}}>{fC(tg)}</div></div>
