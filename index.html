@@ -76,6 +76,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
   const [ganHist,setGanHist]=useState([]);
   const [capHist,setCapHist]=useState(0);
   const [borradosHist,setBorradosHist]=useState({});
+  const [presMes,setPresMes]=useState({});
   const [cierresMes,setCierresMes]=useState([]);
   const [estMes,setEstMes]=useState({});
   const [showPagoFinal,setShowPagoFinal]=useState(false);
@@ -115,6 +116,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       cerrarMesAutomatico(clIni,cierresIni);
       const rci=await gSt(CK);if(rci)setCi(JSON.parse(rci));
       const rbh=await gSt(SK+"_borrados_hist");if(rbh){try{setBorradosHist(typeof rbh==="string"?JSON.parse(rbh):rbh);}catch(e){}}
+      const rpm=await gSt(SK+"_pres_mes");if(rpm){try{setPresMes(typeof rpm==="string"?JSON.parse(rpm):rpm);}catch(e){}}
       setLoading(false);
     })();
   },[]);
@@ -123,9 +125,15 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     if(loading||cl.length===0)return;
     const mn=new Date();
     const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
+    // Estimado - nunca bajar
     const estKey="mp_c_"+CK+"_est_"+mlb;
-    const est=Math.round(cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0));
-    if(est>0){sSt(estKey,JSON.stringify(est));setEstMes(p=>({...p,[mlb]:est}));}
+    const est=Math.round(cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0)+(borradosHist[mlb]?borradosHist[mlb].intereses:0));
+    const actualEst=estMes[mlb]||0;
+    if(est>actualEst){sSt(estKey,JSON.stringify(est));setEstMes(p=>({...p,[mlb]:est}));}
+    // Prestado - nunca bajar
+    const pres=Math.round(cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0)+(borradosHist[mlb]?borradosHist[mlb].monto:0));
+    const actualPres=presMes[mlb]||0;
+    if(pres>actualPres){sSt(SK+"_pres_mes",JSON.stringify({...presMes,[mlb]:pres}));setPresMes(p=>({...p,[mlb]:pres}));}
   },[loading,cl]);
 
   function showT(msg){setToast(msg);setTimeout(()=>setToast(null),2500);}
@@ -190,7 +198,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     const mn=new Date();const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
     // Prestado este mes = monto actual si inicio/renovacion este mes
     // + montos de renovaciones anteriores que ocurrieron este mes
-    const capMes=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0)+(borradosHist[mlb]?borradosHist[mlb].monto:0);
+    const capMes=presMes[mlb]||cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0)+(borradosHist[mlb]?borradosHist[mlb].monto:0);
     const ganAprox=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0)+(borradosHist[mlb]?borradosHist[mlb].intereses:0);
     // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
     const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{
@@ -247,23 +255,28 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       let m=(y===dA?dM:1);const mEnd=(y===hA?hM:12);
       while(m<=mEnd){
         const label=y+"-"+String(m).padStart(2,"0");
-        let g=0,p=0,pr=0;
+        // Usar cierre guardado si existe (datos fijos que no cambian)
+        const cierreG=cierresMes.find(x=>x.label===label);
+        let g=0,p=0,pr=cierreG?cierreG.pr:0;
         let atr=0,nAtr=0;
         cl.forEach(c=>{
-          if(c.fechaInicio&&c.fechaInicio.startsWith(label))pr+=c.monto;
+          if(!cierreG&&c.fechaInicio&&c.fechaInicio.startsWith(label))pr+=c.monto;
           // ganancia via ganHist por fechaInicio
           if(c.estado==="perdida"&&c.fechaInicio&&c.fechaInicio.startsWith(label))p+=capitalPerdido(c);
           if(c.estado==="atrasado"){atr+=cS(c);nAtr++;}
         });
+        // Sumar borradosHist al prestado si no hay cierre
+        if(!cierreG&&borradosHist[label])pr+=borradosHist[label].monto;
         // Ganancia del mes desde ganHist por fechaInicio
         ganHist.filter(gh=>gh.fecha&&gh.fecha.startsWith(label)).forEach(gh=>{g+=gh.ganancia;});
         const rend=pr>0?((g/pr)*100).toFixed(1):"0.0";
-        ms.push({label,g:Math.round(g),p:Math.round(p),n:Math.round(g-p),pr:Math.round(pr),atr:Math.round(atr),nAtr,rend});
+        const estVal=cierreG?cierreG.est:(estMes[label]||0);
+        ms.push({label,g:Math.round(g),p:Math.round(p),n:Math.round(g-p),pr:Math.round(pr),atr:Math.round(atr),nAtr,rend,est:estVal});
         m++;
       }y++;
     }
     return ms;
-  },[cl,hFil]);
+  },[cl,hFil,ganHist,cierresMes,borradosHist,estMes]);
 
   function guardar(){
     const m=pN(form.monto),t=Number(form.tasa),q=Number(form.cuotas);
@@ -376,7 +389,12 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     const c0=cl.find(x=>x.id===id);
     if(c0&&c0.estado==="pagado"){
       // Ganancia ya fue guardada al pagar - no duplicar en ganHist
-      // Solo guardar monto e intereses para que no desaparezcan del estimado/prestado
+      // Sumar al capital historico
+      const capCliente=c0.monto+(c0.renovaciones||[]).reduce((a,r)=>a+(r.montoAnterior||0),0);
+      const nuevoCap=capHist+capCliente;
+      setCapHist(nuevoCap);
+      sSt(SK+"_caphist",JSON.stringify(nuevoCap));
+      // Guardar monto e intereses por mes para que no desaparezcan del estimado/prestado
       const mesC=c0.fechaInicio?c0.fechaInicio.substring(0,7):hoy().substring(0,7);
       const intC=Math.max(0,qR(c0)*c0.cuotas-c0.monto);
       const nuevoBH={...borradosHist};
@@ -747,7 +765,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
               const mn=new Date();const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
     // Prestado este mes = monto actual si inicio/renovacion este mes
     // + montos de renovaciones anteriores que ocurrieron este mes
-    const capMes=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0)+(borradosHist[mlb]?borradosHist[mlb].monto:0);
+    const capMes=presMes[mlb]||cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0)+(borradosHist[mlb]?borradosHist[mlb].monto:0);
     const ganAprox=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0)+(borradosHist[mlb]?borradosHist[mlb].intereses:0);
     // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
     const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{
@@ -1459,4 +1477,3 @@ ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
 </html>
-
