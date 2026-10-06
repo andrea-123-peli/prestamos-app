@@ -375,16 +375,8 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
   function elim(id){
     const c0=cl.find(x=>x.id===id);
     if(c0&&c0.estado==="pagado"){
-      // Solo guardar si estaba pagado — si no, fue un error y se borra todo
-      const gan=Math.max(0,qR(c0)*c0.cuotas-c0.monto-(c0.descuento||0));
-      const nuevaGan=[...ganHist,{id:id+"_del_"+hoy(),clienteId:id,nombre:c0.nombre,ganancia:gan,fecha:c0.fechaInicio||hoy()}];
-      setGanHist(nuevaGan);
-      sSt(SK+"_gan",JSON.stringify(nuevaGan));
-      const capCliente=c0.monto+(c0.renovaciones||[]).reduce((a,r)=>a+(r.montoAnterior||0),0);
-      const nuevoCap=capHist+capCliente;
-      setCapHist(nuevoCap);
-      sSt(SK+"_caphist",JSON.stringify(nuevoCap));
-      // Guardar monto e intereses del cliente borrado por mes para que no desaparezcan
+      // Ganancia ya fue guardada al pagar - no duplicar en ganHist
+      // Solo guardar monto e intereses para que no desaparezcan del estimado/prestado
       const mesC=c0.fechaInicio?c0.fechaInicio.substring(0,7):hoy().substring(0,7);
       const intC=Math.max(0,qR(c0)*c0.cuotas-c0.monto);
       const nuevoBH={...borradosHist};
@@ -1467,3 +1459,4 @@ ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
 </html>
+
