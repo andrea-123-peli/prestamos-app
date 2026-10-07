@@ -121,19 +121,33 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     })();
   },[]);
 
+  const estMesRef=React.useRef(estMes);
+  const presMesRef=React.useRef(presMes);
+  useEffect(()=>{estMesRef.current=estMes;},[estMes]);
+  useEffect(()=>{presMesRef.current=presMes;},[presMes]);
+
   useEffect(()=>{
     if(loading||cl.length===0)return;
     const mn=new Date();
     const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
-    // Estimado - nunca bajar
     const estKey="mp_c_"+CK+"_est_"+mlb;
     const est=Math.round(cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0)+(borradosHist[mlb]?borradosHist[mlb].intereses:0));
-    const actualEst=estMes[mlb]||0;
-    if(est>actualEst){sSt(estKey,JSON.stringify(est));setEstMes(p=>({...p,[mlb]:est}));}
-    // Prestado - nunca bajar
+    const actualEst=estMesRef.current[mlb]||0;
+    if(est>actualEst){
+      try{localStorage.setItem("mp_local_"+estKey,JSON.stringify(est));}catch(e){}
+      MEM[estKey]=JSON.stringify(est);
+      setEstMes(p=>({...p,[mlb]:est}));
+      setTimeout(()=>dbSet(estKey,est),500);
+    }
     const pres=Math.round(cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0)+(borradosHist[mlb]?borradosHist[mlb].monto:0));
-    const actualPres=presMes[mlb]||0;
-    if(pres>actualPres){sSt(SK+"_pres_mes",JSON.stringify({...presMes,[mlb]:pres}));setPresMes(p=>({...p,[mlb]:pres}));}
+    const actualPres=presMesRef.current[mlb]||0;
+    if(pres>actualPres){
+      const newPres={...presMesRef.current,[mlb]:pres};
+      try{localStorage.setItem("mp_local_"+SK+"_pres_mes",JSON.stringify(newPres));}catch(e){}
+      MEM[SK+"_pres_mes"]=JSON.stringify(newPres);
+      setPresMes(p=>({...p,[mlb]:pres}));
+      setTimeout(()=>dbSet(SK+"_pres_mes",newPres),500);
+    }
   },[loading,cl]);
 
   function showT(msg){setToast(msg);setTimeout(()=>setToast(null),2500);}
