@@ -744,7 +744,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
             </div>
             {(()=>{
               const tc=hD.reduce((s,d)=>s+d.g,0);const tp=hD.reduce((s,d)=>s+d.p,0);const tn=tc-tp;
-              const cap=cl.reduce((s,c)=>s+c.monto,0);const rend=cap>0?((tn/cap)*100).toFixed(1):"0.0";const meses=hD.length||1;
+              const cap=hD.reduce((s,d)=>s+d.pr,0);const rend=cap>0?((tn/cap)*100).toFixed(1):"0.0";const meses=hD.length||1;
               const mn=new Date();const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
     // Prestado este mes = monto actual si inicio/renovacion este mes
     // + montos de renovaciones anteriores que ocurrieron este mes
@@ -770,6 +770,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                       {l:"Ganancia Total",v:fC(tc),c:"#f59e0b"},
                       {l:"Perdidas Total",v:fC(tp),c:"#ef4444"},
                       {l:"Ganancia Neta",v:fC(tn),c:"#10b981"},
+                      {l:"Total Prestado",v:fC(cap),c:"#3b82f6"},
                       {l:"Rendimiento",v:rend+"%",c:"#8b5cf6"},
                     ].map((x,i)=>(
                       <div key={i} style={{background:"#0f172a",borderRadius:7,padding:"8px 9px"}}><div style={{fontSize:9,color:"#64748b"}}>{x.l}</div><div style={{fontSize:13,fontWeight:800,color:x.c}}>{x.v}</div></div>
