@@ -437,7 +437,6 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                 {l:"Atrasados",v:fC(stats.atrasD),s:stats.atr+" cliente(s)",ic:"🕐",c:"#fb923c",bg:"#2c1810",go:"clientes",gof:"atrasado"},
                 {l:"Perdidas",v:fC(stats.perd),s:"incobrables",ic:"⚠️",c:"#f87171",bg:"#2c1515",go:"clientes",gof:"perdida"},
                 {l:"Ganancia Neta",v:fC(stats.neta),s:"cobrado - perdidas",ic:"✨",c:"#34d399",bg:"#0c2e20",go:"historial"},
-                {l:"Capital Historico",v:fC(stats.cap),s:"total prestado",ic:"📊",c:"#94a3b8",bg:"#1e293b"},
               ].map((s,i)=>(
                 <div key={i} onClick={()=>{if(s.go){setTab(s.go);if(s.gof)setFil(s.gof);}}} style={{background:s.bg||"#1e293b",borderRadius:14,padding:"14px",border:"1px solid "+s.c+"44",cursor:s.go?"pointer":"default",boxShadow:"0 2px 12px rgba(0,0,0,0.3)"}}>
                   <div style={{fontSize:20,marginBottom:5}}>{s.ic}</div>
