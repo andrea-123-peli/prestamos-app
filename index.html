@@ -26,13 +26,12 @@ function cS(c){
   const residuoAcum=totalAbonado%q;
   return Math.max(0,q*c.cuotas-q*c.cuotasPagadas-residuoAcum);
 }
-function capitalPerdido(c){
-  // Solo el capital real no recuperado (sin intereses)
-  const capPorCuota=c.monto/c.cuotas;
-  const totalAbonado=(c.abonos||[]).reduce((s,a)=>s+a.monto,0);
-  const capDevuelto=c.cuotasPagadas*capPorCuota;
-  return Math.max(0,c.monto-capDevuelto);
-}
+// Perdido: lo que de verdad salio de tu bolsillo y no volvio (capital - lo recibido)
+function capPerd(c){const recibido=qR(c)*c.cuotas-cS(c);return Math.max(0,c.monto-recibido);}
+// Perdido: intereses que ya no van a llegar (lo que debe menos el capital perdido)
+function intPerd(c){return Math.max(0,cS(c)-capPerd(c));}
+// Interes que el cliente alcanzo a pagar por encima del capital (es ganancia real)
+function intCobrado(c){const recibido=qR(c)*c.cuotas-cS(c);return Math.max(0,recibido-c.monto);}
 function tR(c){return(((qR(c)*c.cuotas-c.monto)/c.monto)*100).toFixed(2);}
 function fN(n){if(!n&&n!==0)return"";return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,".");}
 function fC(n){return"$ "+fN(n);}
@@ -79,6 +78,10 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
   const [presMes,setPresMes]=useState({});
   const [cierresMes,setCierresMes]=useState([]);
   const [estMes,setEstMes]=useState({});
+  const [verMes,setVerMes]=useState(null);
+  // Libro de prestamos: cada prestamo hecho queda registrado para siempre (fecha, monto, interes)
+  const [ledger,setLedger]=useState({desde:"",items:[],ajPr:{},ajEst:{}});
+  const ledgerRef=React.useRef(ledger);
   const [showPagoFinal,setShowPagoFinal]=useState(false);
   const [pagoFinalId,setPagoFinalId]=useState(null);
   const [descuento,setDescuento]=useState("");
@@ -114,41 +117,90 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       // Auto close previous month if needed
       const clIni=rc?JSON.parse(rc):[];
       cerrarMesAutomatico(clIni,cierresIni);
-      const rci=await gSt(CK);if(rci)setCi(JSON.parse(rci));
-      const rbh=await gSt(SK+"_borrados_hist");if(rbh){try{setBorradosHist(typeof rbh==="string"?JSON.parse(rbh):rbh);}catch(e){}}
-      const rpm=await gSt(SK+"_pres_mes");if(rpm){try{setPresMes(typeof rpm==="string"?JSON.parse(rpm):rpm);}catch(e){}}
+      let bhIni={},pmIni={},emIni={};
+      const rbh=await gSt(SK+"_borrados_hist");if(rbh){try{bhIni=typeof rbh==="string"?JSON.parse(rbh):rbh;setBorradosHist(bhIni);}catch(e){}}
+      const rpm=await gSt(SK+"_pres_mes");if(rpm){try{pmIni=typeof rpm==="string"?JSON.parse(rpm):rpm;setPresMes(pmIni);}catch(e){}}
+      // Libro de prestamos
+      let led=null;
+      const rl=await gSt(SK+"_prestamos");if(rl){try{led=typeof rl==="string"?JSON.parse(rl):rl;}catch(e){}}
+      if(!led||!Array.isArray(led.items)){
+        // Primera vez: armar el libro con los clientes actuales y conservar lo que ya estaba guardado por mes
+        const yr=new Date().getFullYear();const labs=[];for(let y=yr-1;y<=yr;y++)for(let m=1;m<=12;m++)labs.push(y+"-"+String(m).padStart(2,"0"));
+        await Promise.all(labs.map(async l=>{try{const v=await gSt("mp_c_"+CK+"_est_"+l);if(v){const n=Number(JSON.parse(v));if(n>0)emIni[l]=n;}}catch(e){}}));
+        setEstMes(emIni);
+        const base=sincLedger({desde:mesLabel(new Date()),items:[],ajPr:{},ajEst:{}},clIni.map(c=>c.loanId?c:{...c,loanId:"L"+c.id+"_0"}));
+        const allLabs=new Set([...cierresIni.map(x=>x.label),...Object.keys(pmIni),...Object.keys(emIni),...Object.keys(bhIni)]);
+        allLabs.forEach(l=>{
+          const cg=cierresIni.find(x=>x.label===l);const bh=bhIni[l]||{monto:0,intereses:0};
+          const savedPr=Math.max(cg?cg.pr+(bh.monto||0):0,pmIni[l]||0);
+          const savedEst=Math.max(cg?cg.est+(bh.intereses||0):0,emIni[l]||0);
+          const lp=base.items.filter(x=>x.fecha&&x.fecha.startsWith(l));
+          const dPr=Math.round(savedPr-lp.reduce((s,x)=>s+x.monto,0));const dEst=Math.round(savedEst-lp.reduce((s,x)=>s+x.interes,0));
+          if(dPr>0)base.ajPr[l]=dPr;if(dEst>0)base.ajEst[l]=dEst;
+        });
+        led=base;
+        const clConId=clIni.map(c=>c.loanId?c:{...c,loanId:"L"+c.id+"_0"});
+        setCl(clConId);sSt(SK,JSON.stringify(clConId));
+      }else{
+        led={ajPr:{},ajEst:{},...led};
+        led=sincLedger(led,clIni.filter(c=>c.loanId));
+      }
+      if(!led.recRen){
+        let ghIni=[];try{ghIni=rg?(typeof rg==="string"?JSON.parse(rg):rg):[];}catch(e){}
+        led=recuperarRenov(led,clIni,Array.isArray(ghIni)?ghIni:[]);
+      }
+      ledgerRef.current=led;setLedger(led);sSt(SK+"_prestamos",JSON.stringify(led));
       setLoading(false);
     })();
   },[]);
 
-  const estMesRef=React.useRef(estMes);
-  const presMesRef=React.useRef(presMes);
-  useEffect(()=>{estMesRef.current=estMes;},[estMes]);
-  useEffect(()=>{presMesRef.current=presMes;},[presMes]);
-
-  useEffect(()=>{
-    if(loading||cl.length===0)return;
-    const mn=new Date();
-    const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
-    const estKey="mp_c_"+CK+"_est_"+mlb;
-    const est=Math.round(cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0)+(borradosHist[mlb]?borradosHist[mlb].intereses:0));
-    const actualEst=estMesRef.current[mlb]||0;
-    if(est>actualEst){
-      try{localStorage.setItem("mp_local_"+estKey,JSON.stringify(est));}catch(e){}
-      MEM[estKey]=JSON.stringify(est);
-      setEstMes(p=>({...p,[mlb]:est}));
-      setTimeout(()=>dbSet(estKey,est),500);
-    }
-    const pres=Math.round(cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0)+(borradosHist[mlb]?borradosHist[mlb].monto:0));
-    const actualPres=presMesRef.current[mlb]||0;
-    if(pres>actualPres){
-      const newPres={...presMesRef.current,[mlb]:pres};
-      try{localStorage.setItem("mp_local_"+SK+"_pres_mes",JSON.stringify(newPres));}catch(e){}
-      MEM[SK+"_pres_mes"]=JSON.stringify(newPres);
-      setPresMes(p=>({...p,[mlb]:pres}));
-      setTimeout(()=>dbSet(SK+"_pres_mes",newPres),500);
-    }
-  },[loading,cl]);
+  function mesLabel(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");}
+  function recPrestamo(c,prev){return{id:c.loanId,clienteId:c.id,nombre:c.nombre,fecha:c.fechaInicio,monto:c.monto,interes:Math.max(0,Math.round(qR(c)*c.cuotas-c.monto)),creado:prev?prev.creado:hoy()};}
+  // Actualiza el libro con el prestamo actual de cada cliente (no borra prestamos viejos)
+  function sincLedger(led,clientes){
+    const items=[...led.items];
+    clientes.forEach(c=>{if(!c.loanId)return;const i=items.findIndex(x=>x.id===c.loanId);const r=recPrestamo(c,i>=0?items[i]:null);if(i>=0)items[i]=r;else items.push(r);});
+    return{...led,items};
+  }
+  // Los prestamos anteriores de clientes renovados se perdian del mes en que empezaron.
+  // Se recuperan con el historial de renovaciones y de ganancias (fecha de inicio e interes reales).
+  // El total de cada mes nunca baja: lo que ya estaba guardado se respeta.
+  function recuperarRenov(led,clientes,gh){
+    const items=[...led.items];const add=[];
+    clientes.forEach(c=>{
+      const rens=(c.renovaciones||[]).filter(r=>r&&r.montoAnterior>0).slice().sort((a,b)=>(a.fecha||"").localeCompare(b.fecha||""));
+      if(!rens.length)return;
+      const ghC=gh.filter(g=>g.clienteId===c.id&&g.fecha&&g.fecha!==c.fechaInicio).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+      const usados=new Set();
+      rens.forEach((r,i)=>{
+        const desde=i>0?(rens[i-1].fecha||""):"";
+        const cand=ghC.filter(g=>!usados.has(g)&&g.fecha>=desde&&g.fecha<=(r.fecha||"9999"));
+        const ge=cand.length?cand[cand.length-1]:null;
+        if(ge)usados.add(ge);
+        const ini=ge?ge.fecha:(r.fechaAnterior||(i>0?rens[i-1].fecha:null));
+        if(!ini)return;
+        if(items.some(x=>x.clienteId===c.id&&x.fecha===ini)||add.some(x=>x.clienteId===c.id&&x.fecha===ini))return;
+        const interes=ge?Math.round(ge.ganancia+(ge.descuento||0)):Math.round(r.montoAnterior*(c.tasa||20)/100);
+        add.push({id:"R"+c.id+"_"+ini+"_"+i,clienteId:c.id,nombre:c.nombre,fecha:ini,monto:r.montoAnterior,interes,creado:"recuperado",aprox:!ge});
+      });
+    });
+    const ajPr={...(led.ajPr||{})},ajEst={...(led.ajEst||{})};
+    const meses=new Set(add.map(x=>x.fecha.slice(0,7)));
+    meses.forEach(l=>{
+      const viejos=items.filter(x=>x.fecha&&x.fecha.startsWith(l));const nuevos=add.filter(x=>x.fecha.startsWith(l));
+      const antesPr=viejos.reduce((s,x)=>s+x.monto,0)+(ajPr[l]||0);const antesEst=viejos.reduce((s,x)=>s+x.interes,0)+(ajEst[l]||0);
+      const despPr=viejos.reduce((s,x)=>s+x.monto,0)+nuevos.reduce((s,x)=>s+x.monto,0);const despEst=viejos.reduce((s,x)=>s+x.interes,0)+nuevos.reduce((s,x)=>s+x.interes,0);
+      ajPr[l]=Math.max(0,Math.round(antesPr-despPr));ajEst[l]=Math.max(0,Math.round(antesEst-despEst));
+      if(!ajPr[l])delete ajPr[l];if(!ajEst[l])delete ajEst[l];
+    });
+    return{...led,items:[...items,...add],ajPr,ajEst,recRen:true};
+  }
+  function guardarLedger(led){ledgerRef.current=led;setLedger(led);sSt(SK+"_prestamos",JSON.stringify(led));}
+  // Prestado y estimado de un mes: suma de todos los prestamos con fecha de inicio en ese mes
+  function mesNums(led,label){
+    const it=led.items.filter(x=>x.fecha&&x.fecha.startsWith(label));
+    return{pr:it.reduce((s,x)=>s+x.monto,0)+(led.ajPr[label]||0),est:it.reduce((s,x)=>s+x.interes,0)+(led.ajEst[label]||0)};
+  }
 
   function showT(msg){setToast(msg);setTimeout(()=>setToast(null),2500);}
 
@@ -169,7 +221,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       if(c.estado==="perdida"&&c.fechaInicio&&c.fechaInicio.startsWith(labelMes))p+=cS(c);
       if(c.estado==="atrasado"&&c.fechaInicio&&c.fechaInicio.startsWith(labelMes)){atr+=cS(c);nAtr++;}
     });
-    const est=clientes.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(labelMes)).reduce((s,c)=>{const q=Math.round((c.monto+c.monto*(c.tasa||20)/100)/c.cuotas)||0;return s+q*c.cuotas-c.monto;},0);
+    const est=clientes.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(labelMes)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0);
     const cierre={label:labelMes,g:Math.round(g),p:Math.round(p),n:Math.round(g-p),pr:Math.round(pr),atr:Math.round(atr),nAtr,est:Math.round(est),fechaCierre:hoyStr};
     const nuevos=[...cierresActuales,cierre];
     setCierresMes(nuevos);
@@ -177,14 +229,19 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     return nuevos;
   }
 
-  function save(u){setCl(u);setSaved(true);setTimeout(()=>setSaved(false),1200);sSt(SK,JSON.stringify(u));}
+  function save(u){
+    u=u.map(c=>c.loanId?c:{...c,loanId:"L"+c.id+"_"+Date.now()});
+    setCl(u);setSaved(true);setTimeout(()=>setSaved(false),1200);sSt(SK,JSON.stringify(u));
+    if(!loading)guardarLedger(sincLedger(ledgerRef.current,u));
+  }
 
   function calcStG(cc){
-    const p=cc.filter(c=>c.estado==="perdida").reduce((s,c)=>s+cS(c),0);
+    const p=cc.filter(c=>c.estado==="perdida").reduce((s,c)=>s+capPerd(c),0);
+    const pDeuda=cc.filter(c=>c.estado==="perdida").reduce((s,c)=>s+cS(c),0);
     const cap=cc.reduce((s,c)=>s+c.monto,0)+capHist;
     const capActivo=cc.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>s+cS(c),0);
     const atrasD=cc.filter(c=>c.estado==="atrasado").reduce((s,c)=>s+cS(c),0);
-    return{perd:Math.round(p),cap,capActivo,atrasD:Math.round(atrasD),
+    return{perd:Math.round(p),perdDeuda:Math.round(pDeuda),cap,capActivo,atrasD:Math.round(atrasD),
       act:cc.filter(c=>c.estado==="activo").length,
       atr:cc.filter(c=>c.estado==="atrasado").length,
       pag:cc.filter(c=>c.estado==="pagado").length,
@@ -204,29 +261,28 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     }catch(e){}
   }
 
+  const ganU=useMemo(()=>{const m={};ganHist.forEach(g=>{const k=(g.clienteId||g.id)+"|"+(g.fecha||"");if(!m[k]||g.ganancia>m[k].ganancia)m[k]=g;});return Object.values(m);},[ganHist]);
+
   const stats=useMemo(()=>{
     const st=calcStG(cl);
-    const ganTotal=ganHist.reduce((s,g)=>s+g.ganancia,0);
-    const perdTotal=cl.filter(c=>c.estado==="perdida").reduce((s,c)=>s+cS(c),0);
+    const ganTotal=ganU.reduce((s,g)=>s+g.ganancia,0);
+    const perdTotal=cl.filter(c=>c.estado==="perdida").reduce((s,c)=>s+capPerd(c),0);
     const ganFinal=ganTotal-perdTotal;
     const mn=new Date();const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
     // Prestado este mes = monto actual si inicio/renovacion este mes
     // + montos de renovaciones anteriores que ocurrieron este mes
-    const capMes=Math.max(presMes[mlb]||0,cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+c.monto,0)+(borradosHist[mlb]?borradosHist[mlb].monto:0));
-    const ganAprox=Math.max(estMes[mlb]||0,cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(mlb)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0)+(borradosHist[mlb]?borradosHist[mlb].intereses:0));
+    const nm=mesNums(ledger,mlb);const capMes=nm.pr;const ganAprox=nm.est;
     // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
+    // Lo que falta cobrar, quitandole la parte de interes (proporcional): cuotas y abonos cuentan igual
     const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{
-      const capPorCuota=c.monto/c.cuotas;
-      const totalAb=(c.abonos||[]).reduce((a,ab)=>a+ab.monto,0);
-      const capDevuelto=(c.cuotasPorBoton||c.cuotasPagadas)*capPorCuota+(totalAb*(c.monto/(qR(c)*c.cuotas)));
-      return s+Math.max(0,c.monto-capDevuelto);
+      const tot=qR(c)*c.cuotas;return s+(tot>0?cS(c)*c.monto/tot:0);
     },0);
     let mg=0;
     // Ganancia del mes viene SOLO de ganHist
-    ganHist.filter(g=>g.fecha&&g.fecha.startsWith(mlb)).forEach(g=>{mg+=g.ganancia;});
+    ganU.filter(g=>g.fecha&&g.fecha.startsWith(mlb)).forEach(g=>{mg+=g.ganancia;});
     // Perdidas de clientes cuyo prestamo inicio este mes
     cl.filter(c=>c.estado==="perdida"&&c.fechaInicio&&c.fechaInicio.startsWith(mlb)).forEach(c=>{
-      mg-=cS(c);
+      mg-=capPerd(c);
     });
     const fh=hoy();const ph=[];
     cl.forEach(c=>{
@@ -258,42 +314,40 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     });
     const intCalle=Math.max(0,st.capActivo-capCalleNeto);
     const pctReal=capCalleNeto>0?(((intCalle-st.perd)/capCalleNeto)*100).toFixed(1):"0.0";
-    return{...st,intCalle:Math.round(intCalle),pctReal,gan:ganTotal,neta:ganFinal,capMes,capCalleNeto:Math.round(capCalleNeto),mesMonto:Math.round(mg),mesAnterior:Math.round(ganHist.filter(g=>{const ma=new Date();ma.setDate(1);ma.setMonth(ma.getMonth()-1);const mlbA=ma.getFullYear()+"-"+String(ma.getMonth()+1).padStart(2,"0");return g.fecha&&g.fecha.startsWith(mlbA);}).reduce((s,g)=>s+g.ganancia,0)),ganAprox:Math.round(ganAprox),ph,cobroHoy,pag:cl.filter(c=>c.estado==="pagado").length,perN:cl.filter(c=>c.estado==="perdida").length};
-  },[cl,ganHist,capHist,estMes,presMes,borradosHist]);
+    return{...st,intCalle:Math.round(intCalle),pctReal,gan:ganTotal,neta:ganFinal,capMes,capCalleNeto:Math.round(capCalleNeto),mesMonto:Math.round(mg),mesAnterior:Math.round(ganU.filter(g=>{const ma=new Date();ma.setDate(1);ma.setMonth(ma.getMonth()-1);const mlbA=ma.getFullYear()+"-"+String(ma.getMonth()+1).padStart(2,"0");return g.fecha&&g.fecha.startsWith(mlbA);}).reduce((s,g)=>s+g.ganancia,0)),ganAprox:Math.round(ganAprox),ph,cobroHoy,pag:cl.filter(c=>c.estado==="pagado").length,perN:cl.filter(c=>c.estado==="perdida").length};
+  },[cl,ganU,capHist,ledger]);
 
   const filt=useMemo(()=>cl.filter(c=>(fil==="todos"||c.estado===fil)&&c.nombre.toLowerCase().includes(busq.toLowerCase().trim())).slice().reverse(),[cl,fil,busq]);
 
-  const hD=useMemo(()=>{
-    const [dA,dM]=hFil.desde.split("-").map(Number);
-    const [hA,hM]=hFil.hasta.split("-").map(Number);
+  function buildMeses(desde,hasta){
+    const [dA,dM]=desde.split("-").map(Number);
+    const [hA,hM]=hasta.split("-").map(Number);
     const ms=[];let y=dA;
     while(y<=hA){
       let m=(y===dA?dM:1);const mEnd=(y===hA?hM:12);
       while(m<=mEnd){
         const label=y+"-"+String(m).padStart(2,"0");
-        // Usar cierre guardado si existe (datos fijos que no cambian)
-        const cierreG=cierresMes.find(x=>x.label===label);
-        let g=0,p=0,pr=cierreG?(cierreG.pr+(borradosHist[label]?borradosHist[label].monto:0)):0;
-        let atr=0,nAtr=0;
+        const nm=mesNums(ledger,label);
+        const pr=nm.pr,estVal=nm.est;
+        let g=0,p=0,pS=0,ip=0,atr=0,nAtr=0;
         cl.forEach(c=>{
-          if(!cierreG&&c.fechaInicio&&c.fechaInicio.startsWith(label))pr+=c.monto;
-          // ganancia via ganHist por fechaInicio
-          if(c.estado==="perdida"&&c.fechaInicio&&c.fechaInicio.startsWith(label))p+=cS(c);
+          if(c.estado==="perdida"&&c.fechaInicio&&c.fechaInicio.startsWith(label)){p+=capPerd(c);pS+=cS(c);ip+=intPerd(c);}
           if(c.estado==="atrasado"&&c.fechaInicio&&c.fechaInicio.startsWith(label)){atr+=cS(c);nAtr++;}
         });
-        // Sumar borradosHist al prestado si no hay cierre
-        if(!cierreG&&borradosHist[label])pr+=borradosHist[label].monto;
-        // Ganancia del mes desde ganHist por fechaInicio
-        ganHist.filter(gh=>gh.fecha&&gh.fecha.startsWith(label)).forEach(gh=>{g+=gh.ganancia;});
+        // Ganancia: prestamos pagados completos, en el mes en que inicio el prestamo
+        ganU.filter(gh=>gh.fecha&&gh.fecha.startsWith(label)).forEach(gh=>{g+=gh.ganancia;});
         const rend=pr>0?((g/pr)*100).toFixed(1):"0.0";
-        const bhI=borradosHist[label]?borradosHist[label].intereses:0;const estVivo=cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(label)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0)+bhI;const estVal=cierreG?cierreG.est+bhI:Math.max(estMes[label]||0,Math.round(estVivo));
-        const rendReal=pr>0?(((estVal-p)/pr)*100).toFixed(1):"0.0";
-        ms.push({label,g:Math.round(g),p:Math.round(p),n:Math.round(g-p),pr:Math.round(pr),atr:Math.round(atr),nAtr,rend,rendReal,est:estVal});
+        const rendReal=pr>0?(((estVal-pS)/pr)*100).toFixed(1):"0.0";
+        ms.push({label,pS:Math.round(pS),ip:Math.round(ip),g:Math.round(g),p:Math.round(p),n:Math.round(g-p),pr:Math.round(pr),atr:Math.round(atr),nAtr,rend,rendReal,est:Math.round(estVal)});
         m++;
       }y++;
     }
     return ms;
-  },[cl,hFil,ganHist,cierresMes,borradosHist,estMes]);
+  }
+  const hD=useMemo(()=>buildMeses(hFil.desde,hFil.hasta),[cl,hFil,ganU,ledger]);
+  // Tasa real del año: (estimado - perdidas) / prestado. Misma formula en Inicio e Historial
+  function tasaReal(ms){const pr=ms.reduce((s,d)=>s+d.pr,0);const est=ms.reduce((s,d)=>s+(d.est||0),0);const p=ms.reduce((s,d)=>s+(d.pS!=null?d.pS:d.p),0);return{pr,est,p,pct:pr>0?(((est-p)/pr)*100).toFixed(1):"0.0"};}
+  const trAnio=useMemo(()=>tasaReal(buildMeses(anio+"-01",anio+"-12")),[cl,ganU,ledger]);
 
   function guardar(){
     const m=pN(form.monto),t=Number(form.tasa),q=Number(form.cuotas);
@@ -307,6 +361,8 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     }else{
       u=[...cl,{id:Date.now(),nombre:form.nombre,monto:m,tasa:t,frecuencia:form.frecuencia,cuotas:q,cuotaPersonalizada:cp,estado:yp>=q?"pagado":form.estado,fechaInicio:form.fechaInicio,cuotasPagadas:yp,cuotasPorBoton:yp,historialPagos:hp,abonos:[],renovaciones:[],fechaPerdida:null,diaCobro:form.diaCobro||""}];
     }
+    if(editC){const c0=cl.find(x=>x.id===editC.id);const c1=u.find(x=>x.id===editC.id);
+      if(c0&&c1&&c0.estado!=="perdida"&&c1.estado==="perdida"){const ip=intCobrado(c1);if(ip>0){const ng=[...ganHist,{id:c1.id+"_perd_"+hoy(),clienteId:c1.id,ganancia:ip,fecha:c1.fechaInicio||hoy()}];setGanHist(ng);sSt(SK+"_gan",JSON.stringify(ng));}}}
     save(u);setShowMod(false);setEditC(null);setForm(EF);
   }
 
@@ -393,7 +449,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
         cuotaPersonalizada:pN(renF.cuotaP)||0,fechaInicio:renF.fechaInicio,
         cuotasPagadas:0,cuotasPorBoton:0,historialPagos:[],abonos:[],
         estado:"activo",fechaPerdida:null,descuento:0,fechaRenovacion:hoy(),ultimoPago:hoy(),
-        renovaciones:[...(c.renovaciones||[]),{fecha:hoy(),montoAnterior:c0.monto}]
+        renovaciones:[...(c.renovaciones||[]),{fecha:hoy(),montoAnterior:c0.monto,fechaAnterior:c0.fechaInicio}],loanId:"L"+c.id+"_r"+Date.now()
       };
     });
     save(u);
@@ -406,6 +462,9 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     const c0=cl.find(x=>x.id===id);
     // Al borrar cliente pagado: solo quitarlo de la lista, nada más
     save(cl.filter(c=>c.id!==id));
+    // Si fue un error (creado hoy, sin pagos ni abonos), se quita tambien del libro
+    if(c0&&c0.loanId){const r=ledgerRef.current.items.find(x=>x.id===c0.loanId);
+      if(r&&r.creado===hoy()&&!(c0.cuotasPagadas>0)&&!(c0.abonos||[]).length&&!(c0.renovaciones||[]).length)guardarLedger({...ledgerRef.current,items:ledgerRef.current.items.filter(x=>x.id!==c0.loanId)});}
     if(det&&det.id===id)setDet(null);
   }
 
@@ -447,13 +506,13 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
               {[
                 {l:"Calle c/Intereses",v:fC(stats.capActivo),s:"lo que falta cobrar",ic:"💰",c:"#3b82f6",bg:"#1e3a5f"},
                 {l:"Calle sin Intereses",v:fC(stats.capCalleNeto),s:"capital puro en calle",ic:"💵",c:"#06b6d4",bg:"#0c2a35"},
-                {l:"% Real en la Calle",v:stats.pctReal+"%",s:"intereses "+fC(stats.intCalle)+(stats.perd>0?" − perdidos "+fC(stats.perd):""),ic:"📈",c:"#22c55e",bg:"#0c2e1a"},
+                {l:"Tasa Real "+anio,v:trAnio.pct+"%",s:"estimado − perdidas ÷ prestado",ic:"📈",c:"#22c55e",bg:"#0c2e1a",go:"historial"},
                 {l:"Ganancia del Mes",v:fC(stats.mesMonto),s:"mes actual",ic:"📅",c:"#0ea5e9",bg:"#0c2233",go:"historial"},
                 {l:"Mes Anterior",v:fC(stats.mesAnterior),s:"mes pasado",ic:"📅",c:"#6366f1",bg:"#1e1b4b",go:"historial"},
                 {l:"Estimado a Ganar",v:fC(stats.ganAprox),s:"intereses del mes",ic:"🎯",c:"#a78bfa",bg:"#1e1b4b"},
                 {l:"Prestado Este Mes",v:fC(stats.capMes),s:"capital nuevo este mes",ic:"📅",c:"#a78bfa",bg:"#1e1b4b"},
                 {l:"Atrasados",v:fC(stats.atrasD),s:stats.atr+" cliente(s)",ic:"🕐",c:"#fb923c",bg:"#2c1810",go:"clientes",gof:"atrasado"},
-                {l:"Perdidas",v:fC(stats.perd),s:"incobrables",ic:"⚠️",c:"#f87171",bg:"#2c1515",go:"clientes",gof:"perdida"},
+                {l:"Perdidas",v:fC(stats.perd),s:stats.perdDeuda>0?"capital perdido · te deben "+fC(stats.perdDeuda):"capital perdido",ic:"⚠️",c:"#f87171",bg:"#2c1515",go:"clientes",gof:"perdida"},
                 {l:"Ganancia Neta",v:fC(stats.neta),s:"cobrado - perdidas",ic:"✨",c:"#34d399",bg:"#0c2e20",go:"historial"},
               ].map((s,i)=>(
                 <div key={i} onClick={()=>{if(s.go){setTab(s.go);if(s.gof)setFil(s.gof);}}} style={{background:s.bg||"#1e293b",borderRadius:14,padding:"14px",border:"1px solid "+s.c+"44",cursor:s.go?"pointer":"default",boxShadow:"0 2px 12px rgba(0,0,0,0.3)"}}>
@@ -629,8 +688,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                         const u=cl.map(x=>{if(x.id!==c.id)return x;const ep=nuevoEst==="perdida"&&x.estado!=="perdida";
                 if(ep){
                   // Save any interest already paid to ganHist
-                  const totalPagado=(x.cuotasPagadas*(x.monto/x.cuotas))+(x.abonos||[]).reduce((s,a)=>s+a.monto,0);
-                  const intPagado=Math.max(0,totalPagado-x.monto);
+                  const intPagado=intCobrado(x);
                   if(intPagado>0){
                     const ng=[...ganHist,{id:x.id+"_perd_"+hoy(),clienteId:x.id,ganancia:intPagado,fecha:x.fechaInicio||hoy()}];
                     setGanHist(ng);sSt(SK+"_gan",JSON.stringify(ng));
@@ -762,7 +820,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
             </div>
             {(()=>{
               const tc=hD.reduce((s,d)=>s+d.g,0);const tp=hD.reduce((s,d)=>s+d.p,0);const tn=tc-tp;
-              const cap=hD.reduce((s,d)=>s+d.pr,0);const rend=cap>0?((tn/cap)*100).toFixed(1):"0.0";const tEst=hD.reduce((s,d)=>s+(d.est||0),0);const rendReal=cap>0?(((tEst-tp)/cap)*100).toFixed(1):"0.0";const meses=hD.length||1;
+              const cap=hD.reduce((s,d)=>s+d.pr,0);const rend=cap>0?((tn/cap)*100).toFixed(1):"0.0";const rendReal=tasaReal(hD).pct;const meses=hD.length||1;
               const mn=new Date();const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
               const dMes=hD.find(x=>x.label===mlb);
               return(
@@ -779,7 +837,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                       {l:"Ganancia Neta",v:fC(tn),c:"#10b981"},
                       {l:"Total Prestado",v:fC(cap),c:"#3b82f6"},
                       {l:"Rendimiento",v:rend+"%",c:"#8b5cf6"},
-                      {l:"% Real",v:rendReal+"%",c:"#22c55e"},
+                      {l:"Tasa Real",v:rendReal+"%",c:"#22c55e"},
                     ].map((x,i)=>(
                       <div key={i} style={{background:"#0f172a",borderRadius:7,padding:"8px 9px"}}><div style={{fontSize:9,color:"#64748b"}}>{x.l}</div><div style={{fontSize:13,fontWeight:800,color:x.c}}>{x.v}</div></div>
                     ))}
@@ -793,8 +851,8 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                 const nomMes=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"][parseInt(mes)-1];
                 const color=d.n>0?"#10b981":d.n<0?"#ef4444":"#64748b";
                 return(
-                  <div key={i} style={{background:"#1e293b",borderRadius:10,padding:"11px 12px",border:"1px solid "+(d.n>0?"#10b98133":d.n<0?"#ef444433":"#334155")}}>
-                    <div style={{fontSize:12,fontWeight:800,color:"#f1f5f9",marginBottom:8}}>{nomMes} {ano}</div>
+                  <div key={i} onClick={()=>setVerMes(verMes===d.label?null:d.label)} style={{cursor:"pointer",background:"#1e293b",borderRadius:10,padding:"11px 12px",border:"1px solid "+(verMes===d.label?"#22d3ee":d.n>0?"#10b98133":d.n<0?"#ef444433":"#334155")}}>
+                    <div style={{fontSize:12,fontWeight:800,color:"#f1f5f9",marginBottom:8,display:"flex",justifyContent:"space-between"}}><span>{nomMes} {ano}</span><span style={{fontSize:9,color:"#22d3ee",fontWeight:600}}>{verMes===d.label?"ocultar":"ver préstamos"}</span></div>
                     <div style={{display:"grid",gap:5}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                         <span style={{fontSize:10,color:"#64748b"}}>Ganancia</span>
@@ -818,7 +876,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                         <span style={{fontSize:10,fontWeight:700,color:"#a78bfa"}}>{d.rend||"0.0"}%</span>
                       </div>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:2}}>
-                        <span style={{fontSize:9,color:"#64748b"}}>% Real</span>
+                        <span style={{fontSize:9,color:"#64748b"}}>Tasa Real</span>
                         <span style={{fontSize:10,fontWeight:700,color:"#22c55e"}}>{d.rendReal||"0.0"}%</span>
                       </div>
                       {<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:2}}>
@@ -829,7 +887,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                         <span style={{fontSize:9,color:"#64748b"}}>Estimado</span>
                         <span style={{fontSize:10,fontWeight:700,color:"#f59e0b"}}>{fC(d.est||estMes[d.label]||cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(d.label)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0))}</span>
                       </div>}
-                      {(()=>{const est2=d.est||estMes[d.label]||0;const pc=Math.max(0,est2-d.g-d.p);return est2>0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:2}}>
+                      {(()=>{const est2=d.est||estMes[d.label]||0;const pc=Math.max(0,est2-d.g-(d.ip||0));return est2>0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:2}}>
                         <span style={{fontSize:9,color:"#64748b"}}>Por cobrar</span>
                         <span style={{fontSize:10,fontWeight:700,color:"#22d3ee"}}>{fC(pc)}</span>
                       </div>;})()}
@@ -838,6 +896,40 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                 );
               })}
             </div>
+            {verMes&&(()=>{
+              const its=ledger.items.filter(x=>x.fecha&&x.fecha.startsWith(verMes)).slice().sort((a,b)=>a.fecha.localeCompare(b.fecha));
+              const ajP=ledger.ajPr[verMes]||0,ajE=ledger.ajEst[verMes]||0;
+              const tP=its.reduce((s,x)=>s+x.monto,0)+ajP,tE=its.reduce((s,x)=>s+x.interes,0)+ajE;
+              const est=(x)=>{const c=cl.find(k=>k.id===x.clienteId&&k.loanId===x.id);return c?c.estado:(x.creado==="recuperado"?"renovado":"cerrado");};
+              return(
+                <div style={{background:"#1e293b",borderRadius:11,border:"1px solid #22d3ee55",marginBottom:14,overflow:"hidden"}}>
+                  <div style={{padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#0f172a"}}>
+                    <span style={{fontSize:12,fontWeight:800,color:"#f1f5f9"}}>Préstamos de {verMes} ({its.length})</span>
+                    <button onClick={()=>setVerMes(null)} style={{background:"#334155",color:"#94a3b8",border:"none",borderRadius:6,padding:"3px 9px",fontSize:11,cursor:"pointer"}}>Cerrar</button>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1.6fr 0.9fr 1fr 1fr",padding:"6px 12px",fontSize:9,color:"#64748b",fontWeight:700,textTransform:"uppercase"}}><span>Cliente</span><span>Fecha</span><span style={{textAlign:"right"}}>Prestado</span><span style={{textAlign:"right"}}>Interés</span></div>
+                  {its.map((x,k)=>(
+                    <div key={k} style={{display:"grid",gridTemplateColumns:"1.6fr 0.9fr 1fr 1fr",padding:"6px 12px",borderTop:"1px solid #0f172a",fontSize:11,alignItems:"center"}}>
+                      <span style={{color:"#f1f5f9",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x.nombre} <span style={{fontSize:9,color:"#64748b"}}>{est(x)}</span></span>
+                      <span style={{color:"#94a3b8",fontSize:10}}>{x.fecha.slice(8,10)}/{x.fecha.slice(5,7)}</span>
+                      <span style={{textAlign:"right",color:"#3b82f6",fontWeight:700}}>{fC(x.monto)}</span>
+                      <span style={{textAlign:"right",color:"#f59e0b",fontWeight:700}}>{fC(x.interes)}{x.aprox?"*":""}</span>
+                    </div>
+                  ))}
+                  {(ajP>0||ajE>0)&&<div style={{display:"grid",gridTemplateColumns:"1.6fr 0.9fr 1fr 1fr",padding:"6px 12px",borderTop:"1px solid #0f172a",fontSize:11}}>
+                    <span style={{color:"#94a3b8"}}>Guardado antes (sin detalle)</span><span/>
+                    <span style={{textAlign:"right",color:"#3b82f6",fontWeight:700}}>{fC(ajP)}</span>
+                    <span style={{textAlign:"right",color:"#f59e0b",fontWeight:700}}>{fC(ajE)}</span>
+                  </div>}
+                  <div style={{display:"grid",gridTemplateColumns:"1.6fr 0.9fr 1fr 1fr",padding:"8px 12px",background:"#0f172a",borderTop:"2px solid #334155",fontSize:11,fontWeight:800}}>
+                    <span style={{color:"#f1f5f9"}}>TOTAL</span><span/>
+                    <span style={{textAlign:"right",color:"#3b82f6"}}>{fC(tP)}</span>
+                    <span style={{textAlign:"right",color:"#f59e0b"}}>{fC(tE)}</span>
+                  </div>
+                  {its.some(x=>x.aprox)&&<div style={{padding:"6px 12px",fontSize:9,color:"#64748b"}}>* interés aproximado (préstamo renovado antes de pagarse completo)</div>}
+                </div>
+              );
+            })()}
 
             
 
@@ -931,7 +1023,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                             </div>
                             <div>
                               <div style={{fontSize:9,color:"#64748b"}}>Por cobrar</div>
-                              <div style={{fontSize:11,fontWeight:700,color:"#22d3ee"}}>{fC(Math.max(0,(d.est||estMes[d.label]||0)-d.g-d.p))}</div>
+                              <div style={{fontSize:11,fontWeight:700,color:"#22d3ee"}}>{fC(Math.max(0,(d.est||estMes[d.label]||0)-d.g-(d.ip||0)))}</div>
                             </div>
                             <div style={{textAlign:"right"}}>
                               <div style={{fontSize:9,color:"#64748b"}}>Neto</div>
