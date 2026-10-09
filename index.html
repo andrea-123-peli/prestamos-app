@@ -257,7 +257,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       return false;
     });
     const intCalle=Math.max(0,st.capActivo-capCalleNeto);
-    const pctReal=capCalleNeto>0?((intCalle/capCalleNeto)*100).toFixed(1):"0.0";
+    const pctReal=capCalleNeto>0?(((intCalle-st.perd)/capCalleNeto)*100).toFixed(1):"0.0";
     return{...st,intCalle:Math.round(intCalle),pctReal,gan:ganTotal,neta:ganFinal,capMes,capCalleNeto:Math.round(capCalleNeto),mesMonto:Math.round(mg),mesAnterior:Math.round(ganHist.filter(g=>{const ma=new Date();ma.setDate(1);ma.setMonth(ma.getMonth()-1);const mlbA=ma.getFullYear()+"-"+String(ma.getMonth()+1).padStart(2,"0");return g.fecha&&g.fecha.startsWith(mlbA);}).reduce((s,g)=>s+g.ganancia,0)),ganAprox:Math.round(ganAprox),ph,cobroHoy,pag:cl.filter(c=>c.estado==="pagado").length,perN:cl.filter(c=>c.estado==="perdida").length};
   },[cl,ganHist,capHist,estMes,presMes,borradosHist]);
 
@@ -447,7 +447,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
               {[
                 {l:"Calle c/Intereses",v:fC(stats.capActivo),s:"lo que falta cobrar",ic:"💰",c:"#3b82f6",bg:"#1e3a5f"},
                 {l:"Calle sin Intereses",v:fC(stats.capCalleNeto),s:"capital puro en calle",ic:"💵",c:"#06b6d4",bg:"#0c2a35"},
-                {l:"% Real en la Calle",v:stats.pctReal+"%",s:"intereses "+fC(stats.intCalle)+" · sin perdidos",ic:"📈",c:"#22c55e",bg:"#0c2e1a"},
+                {l:"% Real en la Calle",v:stats.pctReal+"%",s:"intereses "+fC(stats.intCalle)+(stats.perd>0?" − perdidos "+fC(stats.perd):""),ic:"📈",c:"#22c55e",bg:"#0c2e1a"},
                 {l:"Ganancia del Mes",v:fC(stats.mesMonto),s:"mes actual",ic:"📅",c:"#0ea5e9",bg:"#0c2233",go:"historial"},
                 {l:"Mes Anterior",v:fC(stats.mesAnterior),s:"mes pasado",ic:"📅",c:"#6366f1",bg:"#1e1b4b",go:"historial"},
                 {l:"Estimado a Ganar",v:fC(stats.ganAprox),s:"intereses del mes",ic:"🎯",c:"#a78bfa",bg:"#1e1b4b"},
