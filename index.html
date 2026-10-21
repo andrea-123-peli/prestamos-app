@@ -297,23 +297,18 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     const diasSem=["Domingo","Lunes","Martes","Miercoles","Jueves","Viernes","Sabado"];
     const hoyDia=diasSem[new Date().getDay()];
     const hoyDom=new Date().getDate();
+    // Cobrar hoy: todo cliente activo o atrasado cuyo dia de cobro sea hoy y que hoy no haya pagado
+    const ultDia=new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate();
+    const norm=t=>String(t||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+    const diasNum=t=>String(t||"").split(/[^0-9]+/).map(x=>parseInt(x)).filter(n=>n>=1&&n<=31);
+    const tocaHoyNum=t=>diasNum(t).some(d=>d===hoyDom||(d>ultDia&&hoyDom===ultDia));
     const cobroHoy=cl.filter(c=>{
-      if(!c.diaCobro||c.estado!=="activo"||c.fechaInicio===fh||c.fechaRenovacion===fh)return false;
-      if(c.frecuencia==="semanal"){
-        if(c.diaCobro!==hoyDia)return false;
-        return !(c.historialPagos||[]).some(f=>f===fh);
-      }
-      if(c.frecuencia==="mensual"){
-        if(String(hoyDom)!==String(c.diaCobro))return false;
-        return !(c.historialPagos||[]).some(f=>f===fh);
-      }
-      if(c.frecuencia==="quincenal"){
-        const dias=(c.diaCobro||"").split("-").map(d=>parseInt(d.trim())).filter(Boolean);
-        if(!dias.includes(hoyDom))return false;
-        const hace14=new Date();hace14.setDate(hace14.getDate()-14);
-        return !(c.historialPagos||[]).some(f=>f&&f>=hace14.toISOString().split("T")[0]);
-      }
-      if(c.frecuencia==="diario")return !(c.historialPagos||[]).some(f=>f===fh);
+      if(!c.diaCobro||(c.estado!=="activo"&&c.estado!=="atrasado")||c.fechaInicio===fh||c.fechaRenovacion===fh)return false;
+      const pagoHoy=(c.historialPagos||[]).some(f=>f===fh)||(c.abonos||[]).some(a=>a.fecha===fh);
+      if(pagoHoy)return false;
+      if(c.frecuencia==="semanal")return norm(c.diaCobro).split(/[^a-z]+/).includes(norm(hoyDia));
+      if(c.frecuencia==="mensual"||c.frecuencia==="quincenal")return tocaHoyNum(c.diaCobro);
+      if(c.frecuencia==="diario")return true;
       return false;
     });
     const intCalle=Math.max(0,st.capActivo-capCalleNeto);
@@ -620,7 +615,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                       ))}
                     </div>
                   )}
-                  {cl.filter(c=>c.frecuencia===filtFrec&&(c.estado==="activo"||c.estado==="atrasado")&&(!filtDia||(c.diaCobro||"").split("-").map(d=>d.trim()).includes(filtDia))).map((c,i)=>{
+                  {cl.filter(c=>c.frecuencia===filtFrec&&(c.estado==="activo"||c.estado==="atrasado")&&(!filtDia||String(c.diaCobro||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").split(/[^0-9a-z]+/).includes(filtDia.toLowerCase()))).map((c,i)=>{
                     const col=filtFrec==="diario"?"#06b6d4":filtFrec==="semanal"?"#8b5cf6":filtFrec==="quincenal"?"#f59e0b":"#10b981";
                     return(
                       <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 9px",background:"#0f172a",borderRadius:7,marginBottom:4,border:"1px solid "+col+"22"}}>
