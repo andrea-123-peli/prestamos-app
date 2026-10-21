@@ -93,7 +93,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
   const [pinD,setPinD]=useState({});
   const [fil,setFil]=useState("todos");
   const [busq,setBusq]=useState("");
-  const [hFil,setHFil]=useState({desde:"2026-01",hasta:"2026-12"});
+  const [hFil,setHFil]=useState(()=>{const y=new Date().getFullYear();return{desde:y+"-01",hasta:y+"-12"};});
   const [saved,setSaved]=useState(false);
   const [toast,setToast]=useState(null);
   const [impTxt,setImpTxt]=useState("");
@@ -362,6 +362,16 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
       u=[...cl,{id:Date.now(),nombre:form.nombre,monto:m,tasa:t,frecuencia:form.frecuencia,cuotas:q,cuotaPersonalizada:cp,estado:yp>=q?"pagado":form.estado,fechaInicio:form.fechaInicio,cuotasPagadas:yp,cuotasPorBoton:yp,historialPagos:hp,abonos:[],renovaciones:[],fechaPerdida:null,diaCobro:form.diaCobro||""}];
     }
     if(editC){const c0=cl.find(x=>x.id===editC.id);const c1=u.find(x=>x.id===editC.id);
+      // Si se corrigio un prestamo que ya tenia ganancia anotada, recalcular esa ganancia con los datos nuevos
+      if(c0&&c1&&c0.estado===c1.estado&&(c1.estado==="pagado"||c1.estado==="perdida")){
+        const vieja=ganHist.filter(g=>g.clienteId===c1.id&&g.fecha===(c0.fechaInicio||""));
+        if(vieja.length){
+          const nueva=c1.estado==="pagado"?Math.max(0,qR(c1)*c1.cuotas-c1.monto-(c1.descuento||0)):intCobrado(c1);
+          const resto=ganHist.filter(g=>!vieja.includes(g));
+          const ng=nueva>0?[...resto,{...vieja[0],id:c1.id+"_ed_"+hoy(),ganancia:nueva,fecha:c1.fechaInicio||hoy()}]:resto;
+          setGanHist(ng);sSt(SK+"_gan",JSON.stringify(ng));
+        }
+      }
       if(c0&&c1&&c0.estado!=="perdida"&&c1.estado==="perdida"){const ip=intCobrado(c1);if(ip>0){const ng=[...ganHist,{id:c1.id+"_perd_"+hoy(),clienteId:c1.id,ganancia:ip,fecha:c1.fechaInicio||hoy()}];setGanHist(ng);sSt(SK+"_gan",JSON.stringify(ng));}}}
     save(u);setShowMod(false);setEditC(null);setForm(EF);
   }
@@ -900,7 +910,8 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
               const its=ledger.items.filter(x=>x.fecha&&x.fecha.startsWith(verMes)).slice().sort((a,b)=>a.fecha.localeCompare(b.fecha));
               const ajP=ledger.ajPr[verMes]||0,ajE=ledger.ajEst[verMes]||0;
               const tP=its.reduce((s,x)=>s+x.monto,0)+ajP,tE=its.reduce((s,x)=>s+x.interes,0)+ajE;
-              const est=(x)=>{const c=cl.find(k=>k.id===x.clienteId&&k.loanId===x.id);return c?c.estado:(x.creado==="recuperado"?"renovado":"cerrado");};
+              const est=(x)=>{const c=cl.find(k=>k.id===x.clienteId&&k.loanId===x.id);if(c)return c.estado;return cl.some(k=>k.id===x.clienteId)?"pagado":"borrado";};
+              const colNom={activo:"#f1f5f9",atrasado:"#c084fc",perdida:"#f87171",pagado:"#38bdf8",borrado:"#38bdf8"};
               return(
                 <div style={{background:"#1e293b",borderRadius:11,border:"1px solid #22d3ee55",marginBottom:14,overflow:"hidden"}}>
                   <div style={{padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#0f172a"}}>
@@ -910,7 +921,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                   <div style={{display:"grid",gridTemplateColumns:"1.6fr 0.9fr 1fr 1fr",padding:"6px 12px",fontSize:9,color:"#64748b",fontWeight:700,textTransform:"uppercase"}}><span>Cliente</span><span>Fecha</span><span style={{textAlign:"right"}}>Prestado</span><span style={{textAlign:"right"}}>Interés</span></div>
                   {its.map((x,k)=>(
                     <div key={k} style={{display:"grid",gridTemplateColumns:"1.6fr 0.9fr 1fr 1fr",padding:"6px 12px",borderTop:"1px solid #0f172a",fontSize:11,alignItems:"center"}}>
-                      <span style={{color:"#f1f5f9",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x.nombre} <span style={{fontSize:9,color:"#64748b"}}>{est(x)}</span></span>
+                      <span style={{color:colNom[est(x)]||"#f1f5f9",fontWeight:est(x)==="activo"?400:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x.nombre} <span style={{fontSize:9,color:"#64748b",fontWeight:400}}>{est(x)}</span></span>
                       <span style={{color:"#94a3b8",fontSize:10}}>{x.fecha.slice(8,10)}/{x.fecha.slice(5,7)}</span>
                       <span style={{textAlign:"right",color:"#3b82f6",fontWeight:700}}>{fC(x.monto)}</span>
                       <span style={{textAlign:"right",color:"#f59e0b",fontWeight:700}}>{fC(x.interes)}{x.aprox?"*":""}</span>
@@ -964,11 +975,14 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
 
         {tab==="libro"&&(()=>{
           // Merge live data with permanent closed months
+          // Todos los años se calculan en vivo (igual que Historial), sin depender del filtro de Historial
           const todosMeses={};
-          // First add permanent closed months
-          cierresMes.forEach(d=>{todosMeses[d.label]=d;});
-          // Then overlay with live data (more accurate for current clients)
-          hD.forEach(d=>{todosMeses[d.label]=d;});
+          const aniosSet=new Set([String(anio)]);
+          ledger.items.forEach(x=>{if(x.fecha)aniosSet.add(x.fecha.slice(0,4));});
+          Object.keys(ledger.ajPr||{}).concat(Object.keys(ledger.ajEst||{})).forEach(l=>aniosSet.add(l.slice(0,4)));
+          ganU.forEach(g=>{if(g.fecha)aniosSet.add(g.fecha.slice(0,4));});
+          cl.forEach(c=>{if(c.fechaInicio)aniosSet.add(c.fechaInicio.slice(0,4));});
+          [...aniosSet].filter(y=>/^\d{4}$/.test(y)).forEach(y=>{buildMeses(y+"-01",y+"-12").forEach(d=>{todosMeses[d.label]=d;});});
           // Group by year
           const porAnio={};
           Object.values(todosMeses).sort((a,b)=>a.label.localeCompare(b.label)).forEach(d=>{
