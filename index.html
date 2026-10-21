@@ -32,6 +32,10 @@ function capPerd(c){const recibido=qR(c)*c.cuotas-cS(c);return Math.max(0,c.mont
 function intPerd(c){return Math.max(0,cS(c)-capPerd(c));}
 // Interes que el cliente alcanzo a pagar por encima del capital (es ganancia real)
 function intCobrado(c){const recibido=qR(c)*c.cuotas-cS(c);return Math.max(0,recibido-c.monto);}
+// Interes ya cobrado de prestamos que siguen pagando (activos o atrasados), opcionalmente de un mes
+// (si ese prestamo ya tenia ganancia anotada, solo se suma lo que falte, para no contar doble)
+let GAN_ANOTADA=[];
+function cobradoActivos(cl,label){return cl.filter(c=>(c.estado==="activo"||c.estado==="atrasado")&&(!label||(c.fechaInicio&&c.fechaInicio.startsWith(label)))).reduce((s,c)=>{const ya=GAN_ANOTADA.filter(g=>g.clienteId===c.id&&g.fecha===c.fechaInicio).reduce((m,g)=>Math.max(m,g.ganancia),0);return s+Math.max(0,intCobrado(c)-ya);},0);}
 function tR(c){return(((qR(c)*c.cuotas-c.monto)/c.monto)*100).toFixed(2);}
 function fN(n){if(!n&&n!==0)return"";return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,".");}
 function fC(n){return"$ "+fN(n);}
@@ -261,11 +265,11 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     }catch(e){}
   }
 
-  const ganU=useMemo(()=>{const m={};ganHist.forEach(g=>{const k=(g.clienteId||g.id)+"|"+(g.fecha||"");if(!m[k]||g.ganancia>m[k].ganancia)m[k]=g;});return Object.values(m);},[ganHist]);
+  const ganU=useMemo(()=>{const m={};ganHist.forEach(g=>{const k=(g.clienteId||g.id)+"|"+(g.fecha||"");if(!m[k]||g.ganancia>m[k].ganancia)m[k]=g;});const r=Object.values(m);GAN_ANOTADA=r;return r;},[ganHist]);
 
   const stats=useMemo(()=>{
     const st=calcStG(cl);
-    const ganTotal=ganU.reduce((s,g)=>s+g.ganancia,0);
+    const ganTotal=ganU.reduce((s,g)=>s+g.ganancia,0)+cobradoActivos(cl);
     const perdTotal=cl.filter(c=>c.estado==="perdida").reduce((s,c)=>s+capPerd(c),0);
     const ganFinal=ganTotal-perdTotal;
     const mn=new Date();const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
@@ -279,6 +283,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     let mg=0;
     // Ganancia del mes viene SOLO de ganHist
     ganU.filter(g=>g.fecha&&g.fecha.startsWith(mlb)).forEach(g=>{mg+=g.ganancia;});
+    mg+=cobradoActivos(cl,mlb);
     // Perdidas de clientes cuyo prestamo inicio este mes
     cl.filter(c=>c.estado==="perdida"&&c.fechaInicio&&c.fechaInicio.startsWith(mlb)).forEach(c=>{
       mg-=capPerd(c);
@@ -318,7 +323,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     const enCalle=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado");
     const tcCap=enCalle.reduce((s,c)=>s+c.monto,0);const tcInt=enCalle.reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0);
     const tasaCalle=tcCap>0?(((tcInt-st.perdDeuda)/tcCap)*100).toFixed(1):"0.0";
-    return{...st,intCalle:Math.round(intCalle),pctReal,tasaCalle,tcCap,tcInt,gan:ganTotal,neta:ganFinal,capMes,capCalleNeto:Math.round(capCalleNeto),mesMonto:Math.round(mg),mesAnterior:Math.round(ganU.filter(g=>{const ma=new Date();ma.setDate(1);ma.setMonth(ma.getMonth()-1);const mlbA=ma.getFullYear()+"-"+String(ma.getMonth()+1).padStart(2,"0");return g.fecha&&g.fecha.startsWith(mlbA);}).reduce((s,g)=>s+g.ganancia,0)),ganAprox:Math.round(ganAprox),ph,cobroHoy,pag:cl.filter(c=>c.estado==="pagado").length,perN:cl.filter(c=>c.estado==="perdida").length};
+    return{...st,intCalle:Math.round(intCalle),pctReal,tasaCalle,tcCap,tcInt,gan:ganTotal,neta:ganFinal,capMes,capCalleNeto:Math.round(capCalleNeto),mesMonto:Math.round(mg),mesAnterior:Math.round(ganU.filter(g=>{const ma=new Date();ma.setDate(1);ma.setMonth(ma.getMonth()-1);const mlbA=ma.getFullYear()+"-"+String(ma.getMonth()+1).padStart(2,"0");return g.fecha&&g.fecha.startsWith(mlbA);}).reduce((s,g)=>s+g.ganancia,0)+cobradoActivos(cl,(()=>{const ma=new Date();ma.setDate(1);ma.setMonth(ma.getMonth()-1);return ma.getFullYear()+"-"+String(ma.getMonth()+1).padStart(2,"0");})())),ganAprox:Math.round(ganAprox),ph,cobroHoy,pag:cl.filter(c=>c.estado==="pagado").length,perN:cl.filter(c=>c.estado==="perdida").length};
   },[cl,ganU,capHist,ledger]);
 
   const filt=useMemo(()=>cl.filter(c=>(fil==="todos"||c.estado===fil)&&c.nombre.toLowerCase().includes(busq.toLowerCase().trim())).slice().reverse(),[cl,fil,busq]);
@@ -342,6 +347,8 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
         });
         // Ganancia: prestamos pagados completos, en el mes en que inicio el prestamo
         ganU.filter(gh=>gh.fecha&&gh.fecha.startsWith(label)).forEach(gh=>{g+=gh.ganancia;});
+        // mas el interes que ya pagaron los clientes de este mes que siguen pagando
+        g+=cobradoActivos(cl,label);
         const rend=pr>0?((g/pr)*100).toFixed(1):"0.0";
         const rendReal=pr>0?(((estVal-pS)/pr)*100).toFixed(1):"0.0";
         ms.push({label,pc:Math.round(pc),pS:Math.round(pS),ip:Math.round(ip),g:Math.round(g),p:Math.round(p),n:Math.round(g-p),pr:Math.round(pr),atr:Math.round(atr),nAtr,rend,rendReal,est:Math.round(estVal)});
