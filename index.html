@@ -274,9 +274,8 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
     const nm=mesNums(ledger,mlb);const capMes=nm.pr;const ganAprox=nm.est;
     // Capital en calle sin intereses = monto original - capital devuelto por cuotas pagadas
     // Lo que falta cobrar, quitandole la parte de interes (proporcional): cuotas y abonos cuentan igual
-    const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>{
-      const tot=qR(c)*c.cuotas;return s+(tot>0?cS(c)*c.monto/tot:0);
-    },0);
+    // Capital en la calle: lo prestado menos lo que ya te pagaron (lo primero que pagan es capital)
+    const capCalleNeto=cl.filter(c=>c.estado==="activo"||c.estado==="atrasado").reduce((s,c)=>s+capPerd(c),0);
     let mg=0;
     // Ganancia del mes viene SOLO de ganHist
     ganU.filter(g=>g.fecha&&g.fecha.startsWith(mlb)).forEach(g=>{mg+=g.ganancia;});
@@ -329,16 +328,18 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
         const label=y+"-"+String(m).padStart(2,"0");
         const nm=mesNums(ledger,label);
         const pr=nm.pr,estVal=nm.est;
-        let g=0,p=0,pS=0,ip=0,atr=0,nAtr=0;
+        let g=0,p=0,pS=0,ip=0,pc=0,atr=0,nAtr=0;
         cl.forEach(c=>{
           if(c.estado==="perdida"&&c.fechaInicio&&c.fechaInicio.startsWith(label)){p+=capPerd(c);pS+=cS(c);ip+=intPerd(c);}
           if(c.estado==="atrasado"&&c.fechaInicio&&c.fechaInicio.startsWith(label)){atr+=cS(c);nAtr++;}
+          // Por cobrar: intereses que aun deben los clientes activos o atrasados de este mes
+          if((c.estado==="activo"||c.estado==="atrasado")&&c.fechaInicio&&c.fechaInicio.startsWith(label))pc+=intPerd(c);
         });
         // Ganancia: prestamos pagados completos, en el mes en que inicio el prestamo
         ganU.filter(gh=>gh.fecha&&gh.fecha.startsWith(label)).forEach(gh=>{g+=gh.ganancia;});
         const rend=pr>0?((g/pr)*100).toFixed(1):"0.0";
         const rendReal=pr>0?(((estVal-pS)/pr)*100).toFixed(1):"0.0";
-        ms.push({label,pS:Math.round(pS),ip:Math.round(ip),g:Math.round(g),p:Math.round(p),n:Math.round(g-p),pr:Math.round(pr),atr:Math.round(atr),nAtr,rend,rendReal,est:Math.round(estVal)});
+        ms.push({label,pc:Math.round(pc),pS:Math.round(pS),ip:Math.round(ip),g:Math.round(g),p:Math.round(p),n:Math.round(g-p),pr:Math.round(pr),atr:Math.round(atr),nAtr,rend,rendReal,est:Math.round(estVal)});
         m++;
       }y++;
     }
@@ -830,7 +831,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
             </div>
             {(()=>{
               const tc=hD.reduce((s,d)=>s+d.g,0);const tp=hD.reduce((s,d)=>s+d.p,0);const tn=tc-tp;
-              const cap=hD.reduce((s,d)=>s+d.pr,0);const rend=cap>0?((tn/cap)*100).toFixed(1):"0.0";const rendReal=tasaReal(hD).pct;const meses=hD.length||1;
+              const cap=hD.reduce((s,d)=>s+d.pr,0);const rend=cap>0?((tn/cap)*100).toFixed(1):"0.0";const rendReal=tasaReal(hD).pct;const mesHoy=new Date().getFullYear()+"-"+String(new Date().getMonth()+1).padStart(2,"0");const meses=hD.filter(d=>d.label<=mesHoy).length||1;
               const mn=new Date();const mlb=mn.getFullYear()+"-"+String(mn.getMonth()+1).padStart(2,"0");
               const dMes=hD.find(x=>x.label===mlb);
               return(
@@ -897,7 +898,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                         <span style={{fontSize:9,color:"#64748b"}}>Estimado</span>
                         <span style={{fontSize:10,fontWeight:700,color:"#f59e0b"}}>{fC(d.est||estMes[d.label]||cl.filter(c=>c.fechaInicio&&c.fechaInicio.startsWith(d.label)).reduce((s,c)=>s+Math.max(0,qR(c)*c.cuotas-c.monto),0))}</span>
                       </div>}
-                      {(()=>{const est2=d.est||estMes[d.label]||0;const pc=Math.max(0,est2-d.g-(d.ip||0));return est2>0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:2}}>
+                      {(()=>{const est2=d.est||estMes[d.label]||0;const pc=d.pc||0;return (est2>0||pc>0)&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:2}}>
                         <span style={{fontSize:9,color:"#64748b"}}>Por cobrar</span>
                         <span style={{fontSize:10,fontWeight:700,color:"#22d3ee"}}>{fC(pc)}</span>
                       </div>;})()}
@@ -1002,6 +1003,16 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                 const tg=meses.reduce((s,d)=>s+d.g,0);
                 const tp=meses.reduce((s,d)=>s+d.p,0);
                 const tn=tg-tp;
+                const tPr=meses.reduce((s,d)=>s+d.pr,0);
+                const yHoy=new Date().getFullYear();const nM=Number(anio)<yHoy?12:Number(anio)===yHoy?new Date().getMonth()+1:1;
+                const resAnio=[
+                  {l:"Ganancia del año",v:fC(tg),c:"#f59e0b"},
+                  {l:"Pérdidas del año",v:tp>0?"-"+fC(tp):fC(0),c:"#ef4444"},
+                  {l:"Ganancia neta",v:fC(tn),c:tn>=0?"#10b981":"#ef4444"},
+                  {l:"Total prestado",v:fC(tPr),c:"#3b82f6"},
+                  {l:"Rendimiento",v:(tPr>0?((tn/tPr)*100).toFixed(1):"0.0")+"%",c:"#8b5cf6"},
+                  {l:"Promedio por mes",v:fC(Math.round(tn/nM)),c:"#22d3ee"},
+                ];
                 return(
                   <div key={anio} style={{marginBottom:20}}>
                     <div style={{background:"linear-gradient(135deg,#1e293b,#0f172a)",borderRadius:"12px 12px 0 0",padding:"12px 16px",border:"1px solid #334155",borderBottom:"2px solid #f59e0b",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -1010,6 +1021,12 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                         <div style={{textAlign:"right"}}><div style={{fontSize:9,color:"#64748b"}}>GANANCIA</div><div style={{fontSize:13,fontWeight:800,color:"#f59e0b"}}>{fC(tg)}</div></div>
                         <div style={{textAlign:"right"}}><div style={{fontSize:9,color:"#64748b"}}>PERDIDAS</div><div style={{fontSize:13,fontWeight:800,color:"#ef4444"}}>{fC(tp)}</div></div>
                         <div style={{textAlign:"right"}}><div style={{fontSize:9,color:"#64748b"}}>NETO</div><div style={{fontSize:14,fontWeight:900,color:tn>=0?"#10b981":"#ef4444"}}>{fC(tn)}</div></div>
+                      </div>
+                    </div>
+                    <div style={{background:"#1e293b",border:"1px solid #334155",borderTop:"none",padding:"10px 12px"}}>
+                      <div style={{fontSize:10,fontWeight:700,color:"#64748b",marginBottom:7,textTransform:"uppercase"}}>Resumen del año {anio}</div>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(105px,1fr))",gap:7}}>
+                        {resAnio.map((x,i)=>(<div key={i} style={{background:"#0f172a",borderRadius:7,padding:"8px 9px"}}><div style={{fontSize:9,color:"#64748b"}}>{x.l}</div><div style={{fontSize:13,fontWeight:800,color:x.c}}>{x.v}</div></div>))}
                       </div>
                     </div>
                     <div style={{border:"1px solid #334155",borderTop:"none",borderRadius:"0 0 12px 12px",overflow:"hidden"}}>
@@ -1037,7 +1054,7 @@ function Cartera({ck,nombre,CA,onBack,allTrab,saveTrab}){
                             </div>
                             <div>
                               <div style={{fontSize:9,color:"#64748b"}}>Por cobrar</div>
-                              <div style={{fontSize:11,fontWeight:700,color:"#22d3ee"}}>{fC(Math.max(0,(d.est||estMes[d.label]||0)-d.g-(d.ip||0)))}</div>
+                              <div style={{fontSize:11,fontWeight:700,color:"#22d3ee"}}>{fC(d.pc||0)}</div>
                             </div>
                             <div style={{textAlign:"right"}}>
                               <div style={{fontSize:9,color:"#64748b"}}>Neto</div>
